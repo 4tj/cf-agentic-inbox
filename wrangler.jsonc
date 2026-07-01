@@ -17,11 +17,11 @@
 		// Kept only as a reference value for the one-time local migration.
 		// To carry existing domains over, seed the R2 object `config/domains.json` once
 		// (see README > Binding a domain).
-		"DOMAINS": "findmychip.com",
+		"DOMAINS": "",
 		"EMAIL_ADDRESSES": [],
 		// Global kill-switch for auto-drafting an AI reply on every inbound email.
 		// "false" disables it entirely; unset or any other value keeps it enabled.
-		"AUTO_DRAFT_ENABLED": "false",
+		"AUTO_DRAFT_ENABLED": "true",
 		// Worker script name, used for the Email Routing catch-all "send to worker" action.
 		"WORKER_NAME": "cf-agentic-inbox"
 	},
