@@ -23,13 +23,15 @@ export function createEmailServiceClient(
 	token: string,
 	fetchImpl: typeof fetch = fetch,
 ): EmailServiceClient {
-	if (!token) throw new Error("CLOUDFLARE_API_TOKEN is not configured");
+	// Trim once so a stray newline/space in the secret can't corrupt the Bearer header.
+	const apiToken = token?.trim();
+	if (!apiToken) throw new Error("CLOUDFLARE_API_TOKEN is not configured");
 
 	async function cfRequest<T>(method: string, path: string, body?: unknown): Promise<T> {
 		const res = await fetchImpl(`${CF_API_BASE}${path}`, {
 			method,
 			headers: {
-				Authorization: `Bearer ${token}`,
+				Authorization: `Bearer ${apiToken}`,
 				"Content-Type": "application/json",
 			},
 			body: body != null ? JSON.stringify(body) : undefined,
@@ -42,11 +44,12 @@ export function createEmailServiceClient(
 			// non-JSON body (e.g. an HTML error page) — keep `data` empty, fall back to `text` below
 		}
 		if (!res.ok || data.success === false) {
-			const msg =
-				data.errors?.map((e) => e.message).join("; ") ||
+			const detail =
+				data.errors?.map((e) => `${e.message} (code ${e.code})`).join("; ") ||
 				(text ? text.slice(0, 200) : "") ||
-				`Cloudflare API error (${res.status})`;
-			throw new Error(msg);
+				"unknown error";
+			// Include method + path + status so a surfaced 502 pinpoints which call failed and why.
+			throw new Error(`Cloudflare ${method} ${path} → ${res.status}: ${detail}`);
 		}
 		return data.result as T;
 	}

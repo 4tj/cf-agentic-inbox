@@ -47,6 +47,8 @@ domainRoutes.post("/api/v1/domains", async (c) => {
 		return c.json(entry, 201);
 	} catch (err) {
 		const message = err instanceof Error ? err.message : "Failed to configure domain";
+		// Log so `wrangler tail` surfaces the failing Cloudflare call + status + code live.
+		console.error(`Bind domain failed for ${domain}:`, message);
 		return c.json({ error: message }, 502);
 	}
 });
