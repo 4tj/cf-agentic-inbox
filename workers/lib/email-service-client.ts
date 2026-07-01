@@ -59,6 +59,9 @@ export function createEmailServiceClient(
 			});
 		},
 		async onboardSending(zoneId, domain) {
+			// Assumes a Cloudflare-managed DNS zone: onboarding auto-provisions the cf-bounce
+			// MX/SPF/DKIM/DMARC records. The response also carries `dkim_selector` and
+			// `return_path_domain`, which a future verification step could use.
 			await cfRequest("POST", `/zones/${zoneId}/email/sending/subdomains`, { name: domain });
 		},
 	};
