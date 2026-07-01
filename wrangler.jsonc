@@ -14,7 +14,10 @@
 		// TEAM_DOMAIN may be the base Access URL or the full /cdn-cgi/access/certs URL.
 		// The worker now fails closed outside local development if Access is not configured.
 		"DOMAINS": "findmychip.com",
-		"EMAIL_ADDRESSES": []
+		"EMAIL_ADDRESSES": [],
+		// Global kill-switch for auto-drafting an AI reply on every inbound email.
+		// "false" disables it entirely; unset or any other value keeps it enabled.
+		"AUTO_DRAFT_ENABLED": "false"
 	},
 	"send_email": [
 		{

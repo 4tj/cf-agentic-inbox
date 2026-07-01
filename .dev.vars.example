@@ -1,3 +1,8 @@
 # Cloudflare Access (required in production). TEAM_DOMAIN may be the base Access URL or the full /cdn-cgi/access/certs URL.
 POLICY_AUD=your-access-policy-audience-tag
 TEAM_DOMAIN=https://your-team.cloudflareaccess.com
+
+# Global kill-switch for auto-drafting an AI reply on every inbound email.
+# Defined in wrangler.jsonc; uncomment here to override it for local dev.
+# "false" disables auto-draft; unset or any other value keeps it enabled.
+# AUTO_DRAFT_ENABLED=false

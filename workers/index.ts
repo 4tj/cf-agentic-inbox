@@ -402,6 +402,14 @@ async function receiveEmail(event: { raw: ReadableStream; rawSize: number }, env
 		thread_id: threadId, message_id: originalMessageId, raw_headers: JSON.stringify(parsedEmail.headers),
 	}, attachmentData);
 
+	// Global kill-switch: only trigger the agent's auto-draft when AUTO_DRAFT_ENABLED
+	// is not explicitly "false". Unset (or any other value) preserves default behavior.
+	const autoDraftEnabled = String(env.AUTO_DRAFT_ENABLED ?? "true") !== "false";
+	if (!autoDraftEnabled) {
+		console.log(`Auto-draft disabled (AUTO_DRAFT_ENABLED=false); skipping agent trigger for ${mailboxId}`);
+		return;
+	}
+
 	const agentStub = env.EMAIL_AGENT.get(env.EMAIL_AGENT.idFromName(mailboxId));
 	ctx.waitUntil(agentStub.fetch(new Request("https://agents/onNewEmail", {
 		method: "POST", headers: { "Content-Type": "application/json" },
