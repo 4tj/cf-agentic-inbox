@@ -20,6 +20,8 @@ import { handleReplyEmail, handleForwardEmail } from "./routes/reply-forward";
 import { Folders } from "../shared/folders";
 import type { Env } from "./types";
 import { requireMailbox, type MailboxContext } from "./lib/mailbox";
+import { listDomains } from "./lib/domains";
+import { domainRoutes } from "./routes/domains";
 
 type AppContext = Context<MailboxContext>;
 
@@ -82,12 +84,12 @@ app.use("/api/*", cors({
 	},
 }));
 app.use("/api/v1/mailboxes/:mailboxId/*", requireMailbox);
+app.route("/", domainRoutes);
 
 // -- Config ---------------------------------------------------------
 
-app.get("/api/v1/config", (c) => {
-	const domainsRaw = c.env.DOMAINS || "";
-	const domains = domainsRaw.split(",").map((d) => d.trim()).filter(Boolean);
+app.get("/api/v1/config", async (c) => {
+	const domains = (await listDomains(c.env.BUCKET)).map((d) => d.domain);
 	const emailAddresses = c.env.EMAIL_ADDRESSES ?? [];
 	return c.json({ domains, emailAddresses });
 });
