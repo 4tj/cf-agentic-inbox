@@ -27,14 +27,17 @@ export async function listDomains(bucket: R2Bucket): Promise<DomainEntry[]> {
 	}
 }
 
+export async function saveDomains(bucket: R2Bucket, domains: DomainEntry[]): Promise<void> {
+	await bucket.put(DOMAINS_KEY, JSON.stringify(domains));
+}
+
 export async function addDomain(bucket: R2Bucket, entry: DomainEntry): Promise<void> {
 	const domains = await listDomains(bucket);
 	if (domains.some((d) => d.domain === entry.domain)) return;
-	domains.push(entry);
-	await bucket.put(DOMAINS_KEY, JSON.stringify(domains));
+	await saveDomains(bucket, [...domains, entry]);
 }
 
 export async function removeDomain(bucket: R2Bucket, domain: string): Promise<void> {
 	const domains = await listDomains(bucket);
-	await bucket.put(DOMAINS_KEY, JSON.stringify(domains.filter((d) => d.domain !== domain)));
+	await saveDomains(bucket, domains.filter((d) => d.domain !== domain));
 }

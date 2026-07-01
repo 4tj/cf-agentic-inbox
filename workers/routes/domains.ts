@@ -5,7 +5,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import type { Env } from "../types";
-import { addDomain, isValidDomain, listDomains, removeDomain } from "../lib/domains";
+import { isValidDomain, listDomains, removeDomain, saveDomains } from "../lib/domains";
 import { createEmailServiceClient } from "../lib/email-service-client";
 
 const BindDomainBody = z.object({ domain: z.string().min(1) });
@@ -40,7 +40,7 @@ domainRoutes.post("/api/v1/domains", async (c) => {
 		await client.onboardSending(zoneId, domain);
 
 		const entry = { domain, zoneId, boundAt: new Date().toISOString() };
-		await addDomain(c.env.BUCKET, entry);
+		await saveDomains(c.env.BUCKET, [...existing, entry]);
 		return c.json(entry, 201);
 	} catch (err) {
 		const message = err instanceof Error ? err.message : "Failed to configure domain";
