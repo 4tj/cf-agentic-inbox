@@ -13,11 +13,15 @@
 		// Production deploys must also define POLICY_AUD and TEAM_DOMAIN.
 		// TEAM_DOMAIN may be the base Access URL or the full /cdn-cgi/access/certs URL.
 		// The worker now fails closed outside local development if Access is not configured.
+		// DOMAINS is no longer read by the app — domains live in R2 (config/domains.json).
+		// Kept only as a reference value for the one-time local migration.
 		"DOMAINS": "findmychip.com",
 		"EMAIL_ADDRESSES": [],
 		// Global kill-switch for auto-drafting an AI reply on every inbound email.
 		// "false" disables it entirely; unset or any other value keeps it enabled.
-		"AUTO_DRAFT_ENABLED": "false"
+		"AUTO_DRAFT_ENABLED": "false",
+		// Worker script name, used for the Email Routing catch-all "send to worker" action.
+		"WORKER_NAME": "cf-agentic-inbox"
 	},
 	"send_email": [
 		{
