@@ -34,9 +34,18 @@ export function createEmailServiceClient(
 			},
 			body: body != null ? JSON.stringify(body) : undefined,
 		});
-		const data = (await res.json().catch(() => ({}))) as Partial<CloudflareResponse<T>>;
+		const text = await res.text();
+		let data: Partial<CloudflareResponse<T>> = {};
+		try {
+			data = text ? JSON.parse(text) : {};
+		} catch {
+			// non-JSON body (e.g. an HTML error page) — keep `data` empty, fall back to `text` below
+		}
 		if (!res.ok || data.success === false) {
-			const msg = data.errors?.map((e) => e.message).join("; ") || `Cloudflare API error (${res.status})`;
+			const msg =
+				data.errors?.map((e) => e.message).join("; ") ||
+				(text ? text.slice(0, 200) : "") ||
+				`Cloudflare API error (${res.status})`;
 			throw new Error(msg);
 		}
 		return data.result as T;
@@ -48,9 +57,11 @@ export function createEmailServiceClient(
 			return zones?.[0]?.id ?? null;
 		},
 		async enableRouting(zoneId) {
+			// Safe to re-run on retry: routing/enable re-adds/locks the same records.
 			await cfRequest("POST", `/zones/${zoneId}/email/routing/enable`, {});
 		},
 		async setCatchAllToWorker(zoneId, workerName) {
+			// Safe to re-run on retry: this is a PUT, so it just overwrites the same rule.
 			await cfRequest("PUT", `/zones/${zoneId}/email/routing/rules/catch_all`, {
 				actions: [{ type: "worker", value: [workerName] }],
 				matchers: [{ type: "all" }],
@@ -59,9 +70,13 @@ export function createEmailServiceClient(
 			});
 		},
 		async onboardSending(zoneId, domain) {
-			// Assumes a Cloudflare-managed DNS zone: onboarding auto-provisions the cf-bounce
-			// MX/SPF/DKIM/DMARC records. The response also carries `dkim_selector` and
-			// `return_path_domain`, which a future verification step could use.
+			// Idempotent: after a partial bind failure the caller retries the whole flow,
+			// so skip the POST if this domain is already onboarded for sending. The create
+			// response also carries dkim_selector/return_path_domain if a future
+			// verification step is ever needed.
+			const existing = await cfRequest<{ name: string }[]>("GET", `/zones/${zoneId}/email/sending/subdomains`);
+			const list = Array.isArray(existing) ? existing : [];
+			if (list.some((s) => s.name === domain)) return;
 			await cfRequest("POST", `/zones/${zoneId}/email/sending/subdomains`, { name: domain });
 		},
 	};

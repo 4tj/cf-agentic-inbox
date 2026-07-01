@@ -22,7 +22,7 @@ function env(bucket: Bucket, overrides: Record<string, unknown> = {}) {
 }
 
 function jsonResponse(body: unknown, ok = true, status = 200) {
-	return { ok, status, json: async () => body } as unknown as Response;
+	return { ok, status, text: async () => JSON.stringify(body) } as unknown as Response;
 }
 
 afterEach(() => vi.unstubAllGlobals());

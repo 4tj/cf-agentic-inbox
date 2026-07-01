@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createEmailServiceClient } from "./email-service-client";
 
 function jsonResponse(body: unknown, ok = true, status = 200) {
-	return { ok, status, json: async () => body } as unknown as Response;
+	return { ok, status, text: async () => JSON.stringify(body) } as unknown as Response;
 }
 
 describe("createEmailServiceClient", () => {
@@ -47,12 +47,28 @@ describe("createEmailServiceClient", () => {
 	});
 
 	it("onboardSending POSTs the domain name to the sending subdomains endpoint", async () => {
-		const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => jsonResponse({ success: true, result: {} }));
+		const fetchMock = vi.fn(async (_url: string, init?: RequestInit) =>
+			init?.method === "POST"
+				? jsonResponse({ success: true, result: {} })
+				: jsonResponse({ success: true, result: [] }),
+		);
 		const client = createEmailServiceClient("tok", fetchMock as unknown as typeof fetch);
 		await client.onboardSending("z", "example.com");
-		const url = fetchMock.mock.calls[0][0] as string;
-		const opts = fetchMock.mock.calls[0][1] as RequestInit;
-		expect(url).toBe("https://api.cloudflare.com/client/v4/zones/z/email/sending/subdomains");
-		expect(JSON.parse(opts.body as string)).toEqual({ name: "example.com" });
+		const postCall = fetchMock.mock.calls.find((c) => (c[1] as RequestInit)?.method === "POST");
+		expect(postCall?.[0]).toBe("https://api.cloudflare.com/client/v4/zones/z/email/sending/subdomains");
+		expect(JSON.parse((postCall?.[1] as RequestInit).body as string)).toEqual({ name: "example.com" });
+	});
+
+	it("onboardSending skips the POST when the domain is already onboarded", async () => {
+		const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => jsonResponse({ success: true, result: [{ name: "example.com" }] }));
+		const client = createEmailServiceClient("tok", fetchMock as unknown as typeof fetch);
+		await client.onboardSending("z", "example.com");
+		expect(fetchMock.mock.calls.every((c) => (c[1] as RequestInit)?.method !== "POST")).toBe(true);
+	});
+
+	it("surfaces a non-JSON error body in the thrown message", async () => {
+		const fetchMock = vi.fn(async () => ({ ok: false, status: 503, text: async () => "<html>503 Service Unavailable</html>" } as unknown as Response));
+		const client = createEmailServiceClient("tok", fetchMock as unknown as typeof fetch);
+		await expect(client.enableRouting("z")).rejects.toThrow(/503 Service Unavailable/);
 	});
 });
