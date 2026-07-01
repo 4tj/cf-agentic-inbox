@@ -39,7 +39,7 @@ domainRoutes.post("/api/v1/domains", async (c) => {
 		await client.setCatchAllToWorker(zoneId, c.env.WORKER_NAME);
 		await client.onboardSending(zoneId, domain);
 
-		const entry = { domain, zoneId, boundAt: new Date().toISOString() };
+		const entry = { domain, boundAt: new Date().toISOString() };
 		// addDomain re-reads the list immediately before writing (after the slow CF
 		// calls above) so the read-modify-write window stays tight under concurrent
 		// binds — do not "optimize" this into a write of the stale `existing` snapshot.

@@ -6,7 +6,6 @@ import type { Email, Folder, Mailbox } from "~/types";
 
 export interface DomainEntry {
 	domain: string;
-	zoneId: string;
 	boundAt: string;
 }
 

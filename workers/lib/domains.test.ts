@@ -32,17 +32,17 @@ describe("domain store", () => {
 	});
 	it("adds a domain", async () => {
 		const b = fakeBucket();
-		await addDomain(b, { domain: "a.com", zoneId: "z1", boundAt: "t" });
-		expect(await listDomains(b)).toEqual([{ domain: "a.com", zoneId: "z1", boundAt: "t" }]);
+		await addDomain(b, { domain: "a.com", boundAt: "t" });
+		expect(await listDomains(b)).toEqual([{ domain: "a.com", boundAt: "t" }]);
 	});
 	it("dedupes by domain", async () => {
 		const b = fakeBucket();
-		await addDomain(b, { domain: "a.com", zoneId: "z1", boundAt: "t" });
-		await addDomain(b, { domain: "a.com", zoneId: "z2", boundAt: "t2" });
+		await addDomain(b, { domain: "a.com", boundAt: "t" });
+		await addDomain(b, { domain: "a.com", boundAt: "t2" });
 		expect(await listDomains(b)).toHaveLength(1);
 	});
 	it("removes a domain", async () => {
-		const b = fakeBucket(JSON.stringify([{ domain: "a.com", zoneId: "z1", boundAt: "t" }]));
+		const b = fakeBucket(JSON.stringify([{ domain: "a.com", boundAt: "t" }]));
 		await removeDomain(b, "a.com");
 		expect(await listDomains(b)).toEqual([]);
 	});

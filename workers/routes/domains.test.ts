@@ -41,9 +41,8 @@ describe("domain routes", () => {
 			body: JSON.stringify({ domain: "Example.com" }),
 		}, env(bucket));
 		expect(res.status).toBe(201);
-		const body = (await res.json()) as { domain: string; zoneId: string };
+		const body = (await res.json()) as { domain: string };
 		expect(body.domain).toBe("example.com");
-		expect(body.zoneId).toBe("z1");
 		expect((await (await bucket.get("") as any).json())[0].domain).toBe("example.com");
 	});
 
@@ -67,7 +66,7 @@ describe("domain routes", () => {
 	});
 
 	it("POST returns 409 when already bound", async () => {
-		const bucket = fakeBucket(JSON.stringify([{ domain: "a.com", zoneId: "z", boundAt: "t" }]));
+		const bucket = fakeBucket(JSON.stringify([{ domain: "a.com", boundAt: "t" }]));
 		const res = await domainRoutes.request("/api/v1/domains", {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
@@ -77,13 +76,13 @@ describe("domain routes", () => {
 	});
 
 	it("GET lists bound domains", async () => {
-		const bucket = fakeBucket(JSON.stringify([{ domain: "a.com", zoneId: "z", boundAt: "t" }]));
+		const bucket = fakeBucket(JSON.stringify([{ domain: "a.com", boundAt: "t" }]));
 		const res = await domainRoutes.request("/api/v1/domains", {}, env(bucket));
-		expect(await res.json()).toEqual([{ domain: "a.com", zoneId: "z", boundAt: "t" }]);
+		expect(await res.json()).toEqual([{ domain: "a.com", boundAt: "t" }]);
 	});
 
 	it("DELETE removes a domain", async () => {
-		const bucket = fakeBucket(JSON.stringify([{ domain: "a.com", zoneId: "z", boundAt: "t" }]));
+		const bucket = fakeBucket(JSON.stringify([{ domain: "a.com", boundAt: "t" }]));
 		const res = await domainRoutes.request("/api/v1/domains/a.com", { method: "DELETE" }, env(bucket));
 		expect(res.status).toBe(200);
 		expect(await (await bucket.get("") as any).json()).toEqual([]);

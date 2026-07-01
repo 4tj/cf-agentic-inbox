@@ -6,7 +6,6 @@
 
 export interface DomainEntry {
 	domain: string;
-	zoneId: string;
 	boundAt: string;
 }
 
