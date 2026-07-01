@@ -347,23 +347,29 @@ async function streamToArrayBuffer(stream: ReadableStream, streamSize: number) {
 	return result;
 }
 
-async function receiveEmail(event: { raw: ReadableStream; rawSize: number }, env: Env, ctx: ExecutionContext) {
+async function receiveEmail(event: { raw: ReadableStream; rawSize: number; to: string; from: string }, env: Env, ctx: ExecutionContext) {
 	const rawEmail = await streamToArrayBuffer(event.raw, event.rawSize);
 	const parsedEmail = await new PostalMime().parse(rawEmail);
 
-	if (!parsedEmail.to?.length || !parsedEmail.to[0].address) throw new Error("received email with empty to");
-
 	const allowedAddresses = ((env.EMAIL_ADDRESSES ?? []) as string[]).map((a) => a.toLowerCase());
-	const allRecipients = parsedEmail.to.map((t) => t.address?.toLowerCase()).filter(Boolean) as string[];
+	// header To/Cc/Bcc are attacker-controlled and may be absent; they are used
+	// only for display and the spam heuristic below, never for routing.
+	const headerRecipients = (parsedEmail.to || []).map((t) => t.address?.toLowerCase()).filter(Boolean) as string[];
 	const ccRecipients = (parsedEmail.cc || []).map((e) => e.address?.toLowerCase()).filter(Boolean) as string[];
 	const bccRecipients = (parsedEmail.bcc || []).map((e) => e.address?.toLowerCase()).filter(Boolean) as string[];
 
-	let mailboxId: string | undefined;
-	if (allowedAddresses.length > 0) {
-		mailboxId = allRecipients.find((addr) => allowedAddresses.includes(addr));
-		if (!mailboxId) { console.log(`Ignoring email: no recipient matches EMAIL_ADDRESSES.`); return; }
-	} else { mailboxId = allRecipients[0]; }
-	if (!mailboxId) throw new Error("received email with no valid recipient address");
+	// Route by the SMTP envelope recipient (RCPT TO). Cloudflare always provides it
+	// and it reflects who the message was actually delivered to — unlike the To:
+	// header, which can be missing or forged (Bcc, undisclosed-recipients, spam).
+	const mailboxId = event.to?.toLowerCase();
+	if (!mailboxId) { console.log(`Ignoring email: empty envelope recipient.`); return; }
+	if (allowedAddresses.length > 0 && !allowedAddresses.includes(mailboxId)) {
+		console.log(`Ignoring email: envelope recipient not in EMAIL_ADDRESSES.`); return;
+	}
+
+	// A message whose visible To: header carries no address is a hidden / Bcc-style
+	// delivery — in practice almost always spam. File it in Spam, not the Inbox.
+	const isSpam = !parsedEmail.to?.length || !parsedEmail.to[0].address;
 
 	const messageId = crypto.randomUUID();
 	if (!(await env.BUCKET.head(`mailboxes/${mailboxId}.json`))) { console.log(`Ignoring email for ${mailboxId}: mailbox does not exist`); return; }
@@ -394,15 +400,21 @@ async function receiveEmail(event: { raw: ReadableStream; rawSize: number }, env
 
 	const originalMessageId = parsedEmail.messageId ? extractMsgId(parsedEmail.messageId) : null;
 
-	await stub.createEmail(Folders.INBOX, {
+	await stub.createEmail(isSpam ? Folders.SPAM : Folders.INBOX, {
 		id: messageId, subject: parsedEmail.subject || "",
-		sender: (parsedEmail.from?.address || "").toLowerCase(), recipient: allRecipients.join(", "),
+		sender: (parsedEmail.from?.address || "").toLowerCase(), recipient: (headerRecipients.length ? headerRecipients : [mailboxId]).join(", "),
 		cc: ccRecipients.join(", ") || null, bcc: bccRecipients.join(", ") || null,
 		date: new Date().toISOString(), // uses receive time, not the email's Date header
 		body: parsedEmail.html || parsedEmail.text || "",
 		in_reply_to: inReplyTo, email_references: emailReferences.length > 0 ? JSON.stringify(emailReferences) : null,
 		thread_id: threadId, message_id: originalMessageId, raw_headers: JSON.stringify(parsedEmail.headers),
 	}, attachmentData);
+
+	// Spam never triggers the agent — no auto-draft for junk.
+	if (isSpam) {
+		console.log(`Filed email for ${mailboxId} into Spam (no usable To header); skipping agent trigger.`);
+		return;
+	}
 
 	// Global kill-switch: only trigger the agent's auto-draft when AUTO_DRAFT_ENABLED
 	// is not explicitly "false". Unset (or any other value) preserves default behavior.
