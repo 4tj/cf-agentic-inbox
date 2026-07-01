@@ -5,7 +5,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import type { Env } from "../types";
-import { isValidDomain, listDomains, removeDomain, saveDomains } from "../lib/domains";
+import { addDomain, isValidDomain, listDomains, removeDomain } from "../lib/domains";
 import { createEmailServiceClient } from "../lib/email-service-client";
 
 const BindDomainBody = z.object({ domain: z.string().min(1) });
@@ -40,7 +40,10 @@ domainRoutes.post("/api/v1/domains", async (c) => {
 		await client.onboardSending(zoneId, domain);
 
 		const entry = { domain, zoneId, boundAt: new Date().toISOString() };
-		await saveDomains(c.env.BUCKET, [...existing, entry]);
+		// addDomain re-reads the list immediately before writing (after the slow CF
+		// calls above) so the read-modify-write window stays tight under concurrent
+		// binds — do not "optimize" this into a write of the stale `existing` snapshot.
+		await addDomain(c.env.BUCKET, entry);
 		return c.json(entry, 201);
 	} catch (err) {
 		const message = err instanceof Error ? err.message : "Failed to configure domain";
