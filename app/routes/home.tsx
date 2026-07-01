@@ -12,7 +12,7 @@ import {
 	Text,
 	useKumoToastManager,
 } from "@cloudflare/kumo";
-import { EnvelopeIcon, PlusIcon, TrashIcon } from "@phosphor-icons/react";
+import { EnvelopeIcon, GlobeIcon, PlusIcon, TrashIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Link as RouterLink } from "react-router";
@@ -23,6 +23,7 @@ import {
 	useMailboxes,
 } from "~/queries/mailboxes";
 import { queryKeys } from "~/queries/keys";
+import { useBindDomain } from "~/queries/domains";
 
 export function meta() {
 	return [{ title: "Agentic Inbox" }];
@@ -33,6 +34,7 @@ export default function HomeRoute() {
 	const { data: mailboxes = [], refetch: refetchMailboxes, isFetched: mailboxesFetched } = useMailboxes();
 	const createMailbox = useCreateMailbox();
 	const deleteMailbox = useDeleteMailbox();
+	const bindDomain = useBindDomain();
 
 	const { data: configData } = useQuery({
 		queryKey: queryKeys.config,
@@ -55,6 +57,10 @@ export default function HomeRoute() {
 		email: string;
 	} | null>(null);
 	const [isDeleting, setIsDeleting] = useState(false);
+	const [isBindOpen, setIsBindOpen] = useState(false);
+	const [newDomain, setNewDomain] = useState("");
+	const [isBinding, setIsBinding] = useState(false);
+	const [bindError, setBindError] = useState<string | null>(null);
 
 	// Set default domain when config loads
 	useEffect(() => {
@@ -128,6 +134,28 @@ export default function HomeRoute() {
 		}
 	};
 
+	const handleBind = async (e: FormEvent) => {
+		e.preventDefault();
+		setBindError(null);
+		const domain = newDomain.trim().toLowerCase();
+		if (!domain) {
+			setBindError("Please enter a domain");
+			return;
+		}
+		setIsBinding(true);
+		try {
+			await bindDomain.mutateAsync(domain);
+			toastManager.add({ title: `Domain ${domain} bound successfully!` });
+			setIsBindOpen(false);
+			setNewDomain("");
+		} catch (err: unknown) {
+			const message = (err instanceof Error ? err.message : null) || "Failed to bind domain";
+			setBindError(message);
+		} finally {
+			setIsBinding(false);
+		}
+	};
+
 	const isConfigured = emailAddresses.length > 0;
 	const accounts = isConfigured
 		? emailAddresses.map((addr) => ({
@@ -145,15 +173,24 @@ export default function HomeRoute() {
 				<div className="mb-8">
 					<div className="flex items-center justify-between">
 						<h1 className="text-2xl font-bold text-kumo-default">Mailboxes</h1>
-						{!isConfigured && (
+						<div className="flex items-center gap-2">
 							<Button
-								variant="primary"
-								icon={<PlusIcon size={16} />}
-								onClick={() => setIsCreateOpen(true)}
+								variant="secondary"
+								icon={<GlobeIcon size={16} />}
+								onClick={() => setIsBindOpen(true)}
 							>
-								New Mailbox
+								Bind Domain
 							</Button>
-						)}
+							{!isConfigured && (
+								<Button
+									variant="primary"
+									icon={<PlusIcon size={16} />}
+									onClick={() => setIsCreateOpen(true)}
+								>
+									New Mailbox
+								</Button>
+							)}
+						</div>
 					</div>
 					{domains.length > 0 && (
 						<p className="text-sm text-kumo-subtle mt-1">
@@ -314,6 +351,46 @@ export default function HomeRoute() {
 								disabled={!selectedDomain}
 							>
 								Create
+							</Button>
+						</div>
+					</form>
+				</Dialog>
+			</Dialog.Root>
+
+			{/* Bind Domain Dialog */}
+			<Dialog.Root open={isBindOpen} onOpenChange={setIsBindOpen}>
+				<Dialog size="sm" className="p-6">
+					<Dialog.Title className="text-base font-semibold mb-2">
+						Bind Domain
+					</Dialog.Title>
+					<Dialog.Description className="text-kumo-subtle text-sm mb-5">
+						Enter a domain in your Cloudflare account. Email Routing and Sending
+						will be configured automatically.
+					</Dialog.Description>
+					<form onSubmit={handleBind} className="space-y-4">
+						{bindError && (
+							<Text variant="error" size="sm">
+								{bindError}
+							</Text>
+						)}
+						<Input
+							label="Domain"
+							placeholder="example.com"
+							size="sm"
+							value={newDomain}
+							onChange={(e) => setNewDomain(e.target.value)}
+							required
+						/>
+						<div className="flex justify-end gap-2 pt-2">
+							<Dialog.Close
+								render={(props) => (
+									<Button {...props} variant="secondary" size="sm">
+										Cancel
+									</Button>
+								)}
+							/>
+							<Button type="submit" variant="primary" size="sm" loading={isBinding}>
+								Bind
 							</Button>
 						</div>
 					</form>
