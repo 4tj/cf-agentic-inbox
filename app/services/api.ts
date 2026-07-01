@@ -4,6 +4,12 @@
 
 import type { Email, Folder, Mailbox } from "~/types";
 
+export interface DomainEntry {
+	domain: string;
+	zoneId: string;
+	boundAt: string;
+}
+
 const REQUEST_TIMEOUT_MS = 30_000;
 
 export class ApiError extends Error {
@@ -98,6 +104,12 @@ const api = {
 	// Config
 	getConfig: () =>
 		get<{ domains: string[]; emailAddresses: string[] }>("/api/v1/config"),
+
+	// Domains
+	listDomains: () => get<DomainEntry[]>("/api/v1/domains"),
+	bindDomain: (domain: string) => post<DomainEntry>("/api/v1/domains", { domain }),
+	unbindDomain: (domain: string) =>
+		del<{ ok: boolean }>(`/api/v1/domains/${encodeURIComponent(domain)}`),
 
 	// Mailboxes
 	listMailboxes: () => get<Mailbox[]>("/api/v1/mailboxes"),

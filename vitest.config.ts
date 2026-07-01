@@ -2,8 +2,11 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
-export interface Env extends Cloudflare.Env {
-	POLICY_AUD: string;
-	TEAM_DOMAIN: string;
-	CLOUDFLARE_API_TOKEN: string;
-}
+import { defineConfig } from "vitest/config";
+
+export default defineConfig({
+	test: {
+		environment: "node",
+		include: ["workers/**/*.test.ts"],
+	},
+});

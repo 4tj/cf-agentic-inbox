@@ -20,6 +20,8 @@ import { handleReplyEmail, handleForwardEmail } from "./routes/reply-forward";
 import { Folders } from "../shared/folders";
 import type { Env } from "./types";
 import { requireMailbox, type MailboxContext } from "./lib/mailbox";
+import { listDomains } from "./lib/domains";
+import { domainRoutes } from "./routes/domains";
 
 type AppContext = Context<MailboxContext>;
 
@@ -82,12 +84,12 @@ app.use("/api/*", cors({
 	},
 }));
 app.use("/api/v1/mailboxes/:mailboxId/*", requireMailbox);
+app.route("/", domainRoutes);
 
 // -- Config ---------------------------------------------------------
 
-app.get("/api/v1/config", (c) => {
-	const domainsRaw = c.env.DOMAINS || "";
-	const domains = domainsRaw.split(",").map((d) => d.trim()).filter(Boolean);
+app.get("/api/v1/config", async (c) => {
+	const domains = (await listDomains(c.env.BUCKET)).map((d) => d.domain);
 	const emailAddresses = c.env.EMAIL_ADDRESSES ?? [];
 	return c.json({ domains, emailAddresses });
 });
@@ -401,6 +403,14 @@ async function receiveEmail(event: { raw: ReadableStream; rawSize: number }, env
 		in_reply_to: inReplyTo, email_references: emailReferences.length > 0 ? JSON.stringify(emailReferences) : null,
 		thread_id: threadId, message_id: originalMessageId, raw_headers: JSON.stringify(parsedEmail.headers),
 	}, attachmentData);
+
+	// Global kill-switch: only trigger the agent's auto-draft when AUTO_DRAFT_ENABLED
+	// is not explicitly "false". Unset (or any other value) preserves default behavior.
+	const autoDraftEnabled = String(env.AUTO_DRAFT_ENABLED ?? "true") !== "false";
+	if (!autoDraftEnabled) {
+		console.log(`Auto-draft disabled (AUTO_DRAFT_ENABLED=false); skipping agent trigger for ${mailboxId}`);
+		return;
+	}
 
 	const agentStub = env.EMAIL_AGENT.get(env.EMAIL_AGENT.idFromName(mailboxId));
 	ctx.waitUntil(agentStub.fetch(new Request("https://agents/onNewEmail", {

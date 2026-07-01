@@ -19,12 +19,12 @@ https://github.com/cloudflare/agentic-inbox/issues/4#issuecomment-4269118513
 
 ### To set up
 
-1. Deploy to Cloudflare. The deploy flow will automatically provision R2, Durable Objects, and Workers AI. You'll be prompted for **DOMAINS**, which is the domain (yourdomain.com) you want to receive emails for (email@yourdomain.com).
+1. Deploy to Cloudflare. The deploy flow will automatically provision R2, Durable Objects, and Workers AI. The **DOMAINS** var is no longer read by the app -- add the domain(s) you want to receive emails for in-app after deploying, using the **Bind Domain** button (see "Binding a domain" below).
 
      [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/agentic-inbox)
 
 2. **Configure Cloudflare Access** -- Enable [one-click Cloudflare Access](https://developers.cloudflare.com/changelog/post/2025-10-03-one-click-access-for-workers/) on your Worker under Settings > Domains & Routes. The modal will show your `POLICY_AUD` and `TEAM_DOMAIN` values. `TEAM_DOMAIN` can be either your Access team URL or the full `.../cdn-cgi/access/certs` URL. **You must set these as secrets for your Worker.**
-3. **Set up Email Routing** -- In the Cloudflare dashboard, go to your domain > Email Routing and create a catch-all rule that forwards to this Worker
+3. **Set up Email Routing** -- The catch-all rule forwarding to this Worker is now created automatically by the **Bind Domain** button (see "Binding a domain" below). Setting it up manually in the Cloudflare dashboard under your domain > Email Routing remains an optional alternative.
 4. **Enable Email Service** -- The worker needs the `send_email` binding to send outbound emails. See [Email Service docs](https://developers.cloudflare.com/email-routing/email-workers/send-email-workers/)
 5. **Create a mailbox** -- Visit your deployed app and create a mailbox for any address on your domain (e.g. `hello@example.com`)
 
@@ -40,7 +40,7 @@ https://github.com/cloudflare/agentic-inbox/issues/4#issuecomment-4269118513
 - **Full email client** — Send and receive emails via Cloudflare Email Routing with a rich text composer, reply/forward threading, folder organization, search, and attachments
 - **Per-mailbox isolation** — Each mailbox runs in its own Durable Object with SQLite storage and R2 for attachments
 - **Built-in AI agent** — Side panel with 9 email tools for reading, searching, drafting, and sending
-- **Auto-draft on new email** — Agent automatically reads inbound emails and generates draft replies, always requiring explicit confirmation before sending
+- **Auto-draft on new email** — Agent automatically reads inbound emails and generates draft replies, always requiring explicit confirmation before sending. Can be globally disabled with the `AUTO_DRAFT_ENABLED` var (see Configuration)
 - **Configurable and persistent** — Custom system prompts per mailbox, persistent chat history, streaming markdown responses, and tool call visibility
 
 ## Stack
@@ -61,6 +61,23 @@ npm run dev
 
 1. Set your domain in `wrangler.jsonc`
 2. Create an R2 bucket named `agentic-inbox`: `wrangler r2 bucket create agentic-inbox`
+3. Create a Cloudflare API token with **Zone:Read**, **Email Routing:Edit**, **DNS:Edit**, and **Email Sending:Edit**, then set it as a secret:
+   `wrangler secret put CLOUDFLARE_API_TOKEN`
+   (for local dev, put `CLOUDFLARE_API_TOKEN=...` in `.dev.vars`).
+4. (Optional) Toggle auto-drafting via the `AUTO_DRAFT_ENABLED` var in `wrangler.jsonc`. Set it to `"false"` to globally disable the agent from auto-drafting a reply on every inbound email; unset or any other value keeps it enabled. This only affects the automatic on-new-email trigger — you can still ask the agent to draft manually from the side panel. **Note:** this repo ships with auto-draft disabled by default (`AUTO_DRAFT_ENABLED: "false"` in `wrangler.jsonc`); set it to `"true"` (or remove it) to enable.
+
+### Binding a domain
+
+Use the **Bind Domain** button on the home page (next to New Mailbox) to add a
+domain that is already in your Cloudflare account. The app automatically enables
+Email Routing (with a catch-all rule to this Worker) and onboards the domain for
+Email Sending. Inbound routing works immediately; sending DNS records may take
+5–15 minutes to propagate for Cloudflare-managed zones. Domains are stored in R2
+(`config/domains.json`), not in the `DOMAINS` var.
+
+If you're upgrading from a `DOMAINS`-based setup, seed R2 once by binding each
+existing domain via the button (or writing `config/domains.json` directly) --
+the `DOMAINS` var is no longer read.
 
 ### Deploy
 
