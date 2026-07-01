@@ -61,7 +61,19 @@ npm run dev
 
 1. Set your domain in `wrangler.jsonc`
 2. Create an R2 bucket named `agentic-inbox`: `wrangler r2 bucket create agentic-inbox`
-3. (Optional) Toggle auto-drafting via the `AUTO_DRAFT_ENABLED` var in `wrangler.jsonc`. Set it to `"false"` to globally disable the agent from auto-drafting a reply on every inbound email; unset or any other value keeps it enabled. This only affects the automatic on-new-email trigger — you can still ask the agent to draft manually from the side panel.
+3. Create a Cloudflare API token with **Zone:Read**, **Email Routing:Edit**, **DNS:Edit**, and **Email Sending:Edit**, then set it as a secret:
+   `wrangler secret put CLOUDFLARE_API_TOKEN`
+   (for local dev, put `CLOUDFLARE_API_TOKEN=...` in `.dev.vars`).
+4. (Optional) Toggle auto-drafting via the `AUTO_DRAFT_ENABLED` var in `wrangler.jsonc`. Set it to `"false"` to globally disable the agent from auto-drafting a reply on every inbound email; unset or any other value keeps it enabled. This only affects the automatic on-new-email trigger — you can still ask the agent to draft manually from the side panel.
+
+### Binding a domain
+
+Use the **Bind Domain** button on the home page (next to New Mailbox) to add a
+domain that is already in your Cloudflare account. The app automatically enables
+Email Routing (with a catch-all rule to this Worker) and onboards the domain for
+Email Sending. Inbound routing works immediately; sending DNS records may take
+5–15 minutes to propagate for Cloudflare-managed zones. Domains are stored in R2
+(`config/domains.json`), not in the `DOMAINS` var.
 
 ### Deploy
 
