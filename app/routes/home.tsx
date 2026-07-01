@@ -12,7 +12,7 @@ import {
 	Text,
 	useKumoToastManager,
 } from "@cloudflare/kumo";
-import { EnvelopeIcon, GlobeIcon, PlusIcon, TrashIcon } from "@phosphor-icons/react";
+import { EnvelopeIcon, GlobeIcon, PlusIcon, TrashIcon, XIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Link as RouterLink } from "react-router";
@@ -23,7 +23,7 @@ import {
 	useMailboxes,
 } from "~/queries/mailboxes";
 import { queryKeys } from "~/queries/keys";
-import { useBindDomain } from "~/queries/domains";
+import { useBindDomain, useUnbindDomain } from "~/queries/domains";
 
 export function meta() {
 	return [{ title: "Agentic Inbox" }];
@@ -35,6 +35,7 @@ export default function HomeRoute() {
 	const createMailbox = useCreateMailbox();
 	const deleteMailbox = useDeleteMailbox();
 	const bindDomain = useBindDomain();
+	const unbindDomain = useUnbindDomain();
 
 	const { data: configData } = useQuery({
 		queryKey: queryKeys.config,
@@ -61,6 +62,8 @@ export default function HomeRoute() {
 	const [newDomain, setNewDomain] = useState("");
 	const [isBinding, setIsBinding] = useState(false);
 	const [bindError, setBindError] = useState<string | null>(null);
+	const [domainToUnbind, setDomainToUnbind] = useState<string | null>(null);
+	const [isUnbinding, setIsUnbinding] = useState(false);
 
 	// Set default domain when config loads
 	useEffect(() => {
@@ -156,6 +159,20 @@ export default function HomeRoute() {
 		}
 	};
 
+	const handleUnbind = async () => {
+		if (!domainToUnbind) return;
+		setIsUnbinding(true);
+		try {
+			await unbindDomain.mutateAsync(domainToUnbind);
+			toastManager.add({ title: `Domain ${domainToUnbind} unbound` });
+			setDomainToUnbind(null);
+		} catch {
+			toastManager.add({ title: "Failed to unbind domain", variant: "error" });
+		} finally {
+			setIsUnbinding(false);
+		}
+	};
+
 	const isConfigured = emailAddresses.length > 0;
 	const accounts = isConfigured
 		? emailAddresses.map((addr) => ({
@@ -193,9 +210,21 @@ export default function HomeRoute() {
 						</div>
 					</div>
 					{domains.length > 0 && (
-						<p className="text-sm text-kumo-subtle mt-1">
-							{domains.join(", ")}
-						</p>
+						<div className="mt-2 flex flex-wrap items-center gap-1.5">
+							{domains.map((d) => (
+								<span key={d} className="inline-flex items-center gap-1 rounded-md bg-kumo-fill px-2 py-0.5 text-sm text-kumo-subtle">
+									{d}
+									<Button
+										variant="ghost"
+										size="sm"
+										shape="square"
+										icon={<XIcon size={12} />}
+										aria-label={`Unbind ${d}`}
+										onClick={() => setDomainToUnbind(d)}
+									/>
+								</span>
+							))}
+						</div>
 					)}
 				</div>
 
@@ -389,7 +418,7 @@ export default function HomeRoute() {
 									</Button>
 								)}
 							/>
-							<Button type="submit" variant="primary" size="sm" loading={isBinding}>
+							<Button type="submit" variant="primary" size="sm" loading={isBinding} disabled={isBinding}>
 								Bind
 							</Button>
 						</div>
@@ -431,6 +460,36 @@ export default function HomeRoute() {
 							onClick={handleDelete}
 						>
 							Delete
+						</Button>
+					</div>
+				</Dialog>
+			</Dialog.Root>
+
+			{/* Unbind Domain Dialog */}
+			<Dialog.Root
+				open={domainToUnbind !== null}
+				onOpenChange={(open) => {
+					if (!open) setDomainToUnbind(null);
+				}}
+			>
+				<Dialog size="sm" className="p-6">
+					<Dialog.Title className="text-base font-semibold mb-2">
+						Unbind Domain
+					</Dialog.Title>
+					<Dialog.Description className="text-kumo-subtle text-sm mb-5">
+						Remove <strong className="text-kumo-default">{domainToUnbind}</strong> from this inbox?
+						Its Cloudflare Email Routing and Sending configuration is left unchanged — you can re-bind it later.
+					</Dialog.Description>
+					<div className="flex justify-end gap-2">
+						<Dialog.Close
+							render={(props) => (
+								<Button {...props} variant="secondary" size="sm">
+									Cancel
+								</Button>
+							)}
+						/>
+						<Button variant="destructive" size="sm" loading={isUnbinding} onClick={handleUnbind}>
+							Unbind
 						</Button>
 					</div>
 				</Dialog>
