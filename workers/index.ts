@@ -14,6 +14,7 @@ import {
 	generateMessageId,
 	buildThreadingHeaders,
 	listMailboxes,
+	getMailboxStub,
 } from "./lib/email-helpers";
 import { SendEmailRequestSchema } from "./lib/schemas";
 import { handleReplyEmail, handleForwardEmail } from "./routes/reply-forward";
@@ -98,7 +99,17 @@ app.get("/api/v1/config", async (c) => {
 
 app.get("/api/v1/mailboxes", async (c) => {
 	const allMailboxes = await listMailboxes(c.env.BUCKET);
-	return c.json(allMailboxes.map((m) => ({ ...m, name: m.id })));
+	// One lightweight DO query per mailbox, all in parallel. A failing DO
+	// must not break the whole list, so its count degrades to 0.
+	const withUnread = await Promise.all(
+		allMailboxes.map(async (m) => {
+			const unreadCount = await getMailboxStub(c.env, m.id)
+				.getInboxUnreadCount()
+				.catch(() => 0);
+			return { ...m, name: m.id, unreadCount };
+		}),
+	);
+	return c.json(withUnread);
 });
 
 app.post("/api/v1/mailboxes", async (c) => {

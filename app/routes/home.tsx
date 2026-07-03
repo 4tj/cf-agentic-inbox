@@ -3,6 +3,7 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 import {
+	Badge,
 	Button,
 	Dialog,
 	Empty,
@@ -14,7 +15,7 @@ import {
 } from "@cloudflare/kumo";
 import { EnvelopeIcon, GlobeIcon, PlusIcon, TrashIcon, XIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link as RouterLink } from "react-router";
 import api from "~/services/api";
 import {
@@ -174,11 +175,22 @@ export default function HomeRoute() {
 	};
 
 	const isConfigured = emailAddresses.length > 0;
+	// Map mailbox email -> Inbox unread count. In configured mode `accounts`
+	// is built from EMAIL_ADDRESSES (no unread field), so counts are looked up
+	// from the mailboxes query by email (account.id === email === mailboxId).
+	const unreadByEmail = useMemo(() => {
+		const map = new Map<string, number>();
+		for (const m of mailboxes) {
+			map.set(m.email.toLowerCase(), m.unreadCount ?? 0);
+		}
+		return map;
+	}, [mailboxes]);
 	const accounts = isConfigured
 		? emailAddresses.map((addr) => ({
 				id: addr,
 				email: addr,
 				name: addr.split("@")[0] || addr,
+				unreadCount: unreadByEmail.get(addr.toLowerCase()) ?? 0,
 			}))
 		: mailboxes;
 
@@ -253,6 +265,9 @@ export default function HomeRoute() {
 										{account.email}
 									</div>
 								</div>
+								{(account.unreadCount ?? 0) > 0 && (
+									<Badge variant="secondary">{account.unreadCount}</Badge>
+								)}
 								{!isConfigured && (
 									<Button
 										variant="ghost"
