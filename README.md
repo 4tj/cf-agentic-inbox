@@ -42,6 +42,7 @@ https://github.com/cloudflare/agentic-inbox/issues/4#issuecomment-4269118513
 - **Built-in AI agent** — Side panel with 9 email tools for reading, searching, drafting, and sending
 - **Auto-draft on new email** — Agent automatically reads inbound emails and generates draft replies, always requiring explicit confirmation before sending. Can be globally disabled with the `AUTO_DRAFT_ENABLED` var (see Configuration)
 - **Configurable and persistent** — Custom system prompts per mailbox, persistent chat history, streaming markdown responses, and tool call visibility
+- **Read-only mailbox sharing** — Each mailbox can expose one resettable public Inbox link on `sharemail.shopless.pro`
 
 ## Stack
 
@@ -64,7 +65,11 @@ npm run dev
 3. Create a Cloudflare API token with **Zone:Read**, **Email Routing:Edit**, **DNS:Edit**, and **Email Sending:Edit**, then set it as a secret:
    `wrangler secret put CLOUDFLARE_API_TOKEN`
    (for local dev, put `CLOUDFLARE_API_TOKEN=...` in `.dev.vars`).
-4. (Optional) Toggle auto-drafting via the `AUTO_DRAFT_ENABLED` var in `wrangler.jsonc`. Set it to `"false"` to globally disable the agent from auto-drafting a reply on every inbound email; unset or any other value keeps it enabled. This only affects the automatic on-new-email trigger — you can still ask the agent to draft manually from the side panel. **Note:** this repo ships with auto-draft disabled by default (`AUTO_DRAFT_ENABLED: "false"` in `wrangler.jsonc`); set it to `"true"` (or remove it) to enable.
+4. Share links use the Worker custom domain configured in `wrangler.jsonc`:
+   `sharemail.shopless.pro`. Keep the main app behind Cloudflare Access, but do
+   not attach a Cloudflare Access policy to the share hostname or public visitors
+   will be challenged before the Worker can serve the read-only page.
+5. (Optional) Toggle auto-drafting via the `AUTO_DRAFT_ENABLED` var in `wrangler.jsonc`. Set it to `"false"` to globally disable the agent from auto-drafting a reply on every inbound email; unset or any other value keeps it enabled. This only affects the automatic on-new-email trigger — you can still ask the agent to draft manually from the side panel. **Note:** this repo ships with auto-draft disabled by default (`AUTO_DRAFT_ENABLED: "false"` in `wrangler.jsonc`); set it to `"true"` (or remove it) to enable.
 
 ### Binding a domain
 
@@ -78,6 +83,17 @@ Email Sending. Inbound routing works immediately; sending DNS records may take
 If you're upgrading from a `DOMAINS`-based setup, seed R2 once by binding each
 existing domain via the button (or writing `config/domains.json` directly) --
 the `DOMAINS` var is no longer read.
+
+### Sharing a mailbox
+
+Open a mailbox, go to **Settings**, and use the **Sharing** section to copy the
+public Inbox link. The first copy creates the link if one does not exist. **Reset**
+replaces the token and invalidates the old URL.
+
+Visitors can view the shared mailbox's Inbox, open messages and thread context,
+and download or preview visible attachments. They cannot sign in, send mail,
+change read/star state, move/delete messages, open drafts, or access private API
+routes.
 
 ### Deploy
 

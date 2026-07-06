@@ -7,6 +7,7 @@ export const queryKeys = {
 	mailboxes: {
 		all: ["mailboxes"] as const,
 		detail: (id: string) => ["mailboxes", id] as const,
+		shareLink: (id: string) => ["mailboxes", id, "share-link"] as const,
 	},
 	emails: {
 		list: (mailboxId: string, params: Record<string, string>) =>
@@ -22,6 +23,14 @@ export const queryKeys = {
 	search: {
 		results: (mailboxId: string, query: string, page: number) =>
 			["search", mailboxId, query, page] as const,
+	},
+	publicShare: {
+		meta: (token: string) => ["public-share", token, "meta"] as const,
+		emails: (token: string, page: number) => ["public-share", token, "emails", page] as const,
+		detail: (token: string, emailId: string) =>
+			["public-share", token, "emails", emailId] as const,
+		thread: (token: string, threadId: string) =>
+			["public-share", token, "threads", threadId] as const,
 	},
 	config: ["config"] as const,
 	domains: ["domains"] as const,

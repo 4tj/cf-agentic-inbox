@@ -9,6 +9,22 @@ export interface DomainEntry {
 	boundAt: string;
 }
 
+export interface MailboxShareLink {
+	mailboxId: string;
+	token?: string;
+	shareUrl: string | null;
+	createdAt?: string;
+	updatedAt?: string;
+}
+
+export interface PublicShareMeta {
+	mailbox: {
+		id: string;
+		email: string;
+		name: string;
+	};
+}
+
 const REQUEST_TIMEOUT_MS = 30_000;
 
 export class ApiError extends Error {
@@ -120,6 +136,10 @@ const api = {
 		put<Mailbox>(`/api/v1/mailboxes/${mailboxId}`, { settings }),
 	deleteMailbox: (mailboxId: string) =>
 		del<void>(`/api/v1/mailboxes/${mailboxId}`),
+	getMailboxShareLink: (mailboxId: string) =>
+		get<MailboxShareLink>(`/api/v1/mailboxes/${mailboxId}/share-link`),
+	resetMailboxShareLink: (mailboxId: string) =>
+		post<MailboxShareLink>(`/api/v1/mailboxes/${mailboxId}/share-link/reset`),
 
 	// Emails
 	listEmails: (mailboxId: string, params: Record<string, string>, opts?: { signal?: AbortSignal }) =>
@@ -171,6 +191,18 @@ const api = {
 	// Search
 	searchEmails: (mailboxId: string, params: Record<string, string>) =>
 		get<EmailListResponse | Email[]>(`/api/v1/mailboxes/${mailboxId}/search`, { params }),
+
+	// Public share
+	getPublicShare: (token: string, opts?: { signal?: AbortSignal }) =>
+		get<PublicShareMeta>(`/api/public/share/${encodeURIComponent(token)}`, { signal: opts?.signal }),
+	listPublicShareEmails: (token: string, params: Record<string, string>, opts?: { signal?: AbortSignal }) =>
+		get<EmailListResponse>(`/api/public/share/${encodeURIComponent(token)}/emails`, { params, signal: opts?.signal }),
+	getPublicShareEmail: (token: string, id: string, opts?: { signal?: AbortSignal }) =>
+		get<Email>(`/api/public/share/${encodeURIComponent(token)}/emails/${encodeURIComponent(id)}`, { signal: opts?.signal }),
+	getPublicShareThread: (token: string, threadId: string, opts?: { signal?: AbortSignal }) =>
+		get<Email[]>(`/api/public/share/${encodeURIComponent(token)}/threads/${encodeURIComponent(threadId)}`, { signal: opts?.signal }),
+	getPublicShareAttachment: (token: string, emailId: string, attachmentId: string) =>
+		get<Blob>(`/api/public/share/${encodeURIComponent(token)}/emails/${encodeURIComponent(emailId)}/attachments/${encodeURIComponent(attachmentId)}`, { responseType: "blob" }),
 };
 
 export default api;

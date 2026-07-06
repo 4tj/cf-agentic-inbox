@@ -40,6 +40,7 @@ export interface EmailFull extends EmailMetadata {
 
 export interface AttachmentInfo {
 	id: string;
+	email_id?: string;
 	filename: string;
 	mimetype: string;
 	size: number;

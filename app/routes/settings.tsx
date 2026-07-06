@@ -3,10 +3,11 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 import { Badge, Button, Input, Loader, useKumoToastManager } from "@cloudflare/kumo";
-import { RobotIcon, ArrowCounterClockwiseIcon } from "@phosphor-icons/react";
+import { RobotIcon, ArrowCounterClockwiseIcon, CheckIcon, CopyIcon, LinkIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router";
 import { useMailbox, useUpdateMailbox } from "~/queries/mailboxes";
+import { useMailboxShareLink, useResetMailboxShareLink } from "~/queries/share-links";
 
 // Placeholder shown in the textarea when no custom prompt is set.
 // The authoritative default prompt lives in workers/agent/index.ts (DEFAULT_SYSTEM_PROMPT).
@@ -16,11 +17,16 @@ export default function SettingsRoute() {
 	const { mailboxId } = useParams<{ mailboxId: string }>();
 	const toastManager = useKumoToastManager();
 	const { data: mailbox } = useMailbox(mailboxId);
+	const { data: mailboxShareLink, isLoading: isShareLinkLoading } = useMailboxShareLink(mailboxId);
 	const updateMailboxMutation = useUpdateMailbox();
+	const resetShareLinkMutation = useResetMailboxShareLink();
 
 	const [displayName, setDisplayName] = useState("");
 	const [agentPrompt, setAgentPrompt] = useState("");
 	const [isSaving, setIsSaving] = useState(false);
+	const [isCopyingShareLink, setIsCopyingShareLink] = useState(false);
+	const [isResettingShareLink, setIsResettingShareLink] = useState(false);
+	const [shareCopied, setShareCopied] = useState(false);
 
 	useEffect(() => {
 		if (mailbox) {
@@ -54,6 +60,45 @@ export default function SettingsRoute() {
 		setAgentPrompt("");
 	};
 
+	const copyShareUrl = async (shareUrl: string) => {
+		await navigator.clipboard.writeText(shareUrl);
+		setShareCopied(true);
+		window.setTimeout(() => setShareCopied(false), 2000);
+	};
+
+	const handleCopyShareLink = async () => {
+		if (!mailboxId) return;
+		setIsCopyingShareLink(true);
+		try {
+			let shareUrl = mailboxShareLink?.shareUrl;
+			if (!shareUrl) {
+				const created = await resetShareLinkMutation.mutateAsync(mailboxId);
+				shareUrl = created.shareUrl;
+			}
+			if (!shareUrl) throw new Error("Share link unavailable");
+			await copyShareUrl(shareUrl);
+			toastManager.add({ title: "Share link copied" });
+		} catch {
+			toastManager.add({ title: "Failed to copy share link", variant: "error" });
+		} finally {
+			setIsCopyingShareLink(false);
+		}
+	};
+
+	const handleResetShareLink = async () => {
+		if (!mailboxId) return;
+		setIsResettingShareLink(true);
+		try {
+			const updated = await resetShareLinkMutation.mutateAsync(mailboxId);
+			if (updated.shareUrl) await copyShareUrl(updated.shareUrl);
+			toastManager.add({ title: "Share link reset" });
+		} catch {
+			toastManager.add({ title: "Failed to reset share link", variant: "error" });
+		} finally {
+			setIsResettingShareLink(false);
+		}
+	};
+
 	if (!mailbox) {
 		return (
 			<div className="flex justify-center py-20">
@@ -81,6 +126,49 @@ export default function SettingsRoute() {
 							onChange={(e) => setDisplayName(e.target.value)}
 						/>
 						<Input label="Email" type="email" value={mailbox.email} disabled />
+					</div>
+				</div>
+
+				{/* Sharing */}
+				<div className="rounded-lg border border-kumo-line bg-kumo-base p-5">
+					<div className="flex items-center justify-between mb-4">
+						<div className="flex items-center gap-2">
+							<LinkIcon size={16} weight="duotone" className="text-kumo-subtle" />
+							<span className="text-sm font-medium text-kumo-default">
+								Sharing
+							</span>
+							<Badge variant={mailboxShareLink?.shareUrl ? "primary" : "secondary"}>
+								{mailboxShareLink?.shareUrl ? "Active" : "Off"}
+							</Badge>
+						</div>
+					</div>
+					<div className="space-y-3">
+						<Input
+							label="Public inbox link"
+							value={mailboxShareLink?.shareUrl || ""}
+							placeholder={isShareLinkLoading ? "Loading..." : "No link created"}
+							readOnly
+						/>
+						<div className="flex justify-end gap-2">
+							<Button
+								variant="secondary"
+								size="sm"
+								icon={shareCopied ? <CheckIcon size={14} /> : <CopyIcon size={14} />}
+								onClick={handleCopyShareLink}
+								loading={isCopyingShareLink}
+							>
+								{shareCopied ? "Copied" : "Copy Link"}
+							</Button>
+							<Button
+								variant="ghost"
+								size="sm"
+								icon={<ArrowCounterClockwiseIcon size={14} />}
+								onClick={handleResetShareLink}
+								loading={isResettingShareLink}
+							>
+								Reset
+							</Button>
+						</div>
 					</div>
 				</div>
 

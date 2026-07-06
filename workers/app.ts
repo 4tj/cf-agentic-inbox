@@ -8,6 +8,7 @@ import { jwtVerify, createRemoteJWKSet } from "jose";
 import { createRequestHandler } from "react-router";
 import { app as apiApp, receiveEmail } from "./index";
 import { EmailMCP } from "./mcp";
+import { isPublicShareRequestUrl } from "./lib/share-host";
 import type { Env } from "./types";
 
 export { MailboxDO } from "./durableObject";
@@ -46,6 +47,10 @@ const app = new Hono<{ Bindings: Env }>();
 app.use("*", async (c, next) => {
 	// Skip validation in development
 	if (import.meta.env.DEV) {
+		return next();
+	}
+
+	if (isPublicShareRequestUrl(c.req.raw, c.env)) {
 		return next();
 	}
 
