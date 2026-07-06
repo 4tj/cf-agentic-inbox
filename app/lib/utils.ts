@@ -181,11 +181,22 @@ export function rewriteInlineImages(
 	emailId: string,
 	attachments?: { id: string; content_id?: string | null; disposition?: string | null }[],
 ): string {
+	return rewriteInlineImagesWithUrl(body, emailId, attachments, (attachmentId) =>
+		`/api/v1/mailboxes/${mailboxId}/emails/${emailId}/attachments/${attachmentId}`,
+	);
+}
+
+export function rewriteInlineImagesWithUrl(
+	body: string,
+	emailId: string,
+	attachments: { id: string; content_id?: string | null; disposition?: string | null }[] | undefined,
+	buildUrl: (attachmentId: string, emailId: string) => string,
+): string {
 	if (!body || !attachments?.length) return body;
 	let result = body;
 	for (const att of attachments) {
 		if (att.disposition === "inline" && att.content_id) {
-			const url = `/api/v1/mailboxes/${mailboxId}/emails/${emailId}/attachments/${att.id}`;
+			const url = buildUrl(att.id, emailId);
 			// Strip angle brackets from content_id if present
 			const cid = att.content_id.startsWith("<")
 				? att.content_id.slice(1, -1)

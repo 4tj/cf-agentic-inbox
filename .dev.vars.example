@@ -10,3 +10,6 @@ TEAM_DOMAIN=https://your-team.cloudflareaccess.com
 # Cloudflare API token for Bind Domain auto-configuration (required).
 # Scopes: Zone:Read, Email Routing:Edit, DNS:Edit, Email Sending:Edit.
 CLOUDFLARE_API_TOKEN=your-cloudflare-api-token
+
+# Public read-only share endpoint hostname.
+SHARE_HOST=sharemail.shopless.pro

@@ -13,6 +13,7 @@ interface EmailAttachmentListProps {
 	onPreviewImage?: (url: string, filename: string) => void;
 	className?: string;
 	showHeading?: boolean;
+	buildAttachmentUrl?: (emailId: string, attachmentId: string, attachment: Attachment) => string;
 }
 
 export default function EmailAttachmentList({
@@ -22,8 +23,9 @@ export default function EmailAttachmentList({
 	onPreviewImage,
 	className,
 	showHeading = false,
+	buildAttachmentUrl,
 }: EmailAttachmentListProps) {
-	if (!mailboxId) return null;
+	if (!mailboxId && !buildAttachmentUrl) return null;
 
 	const files = getNonInlineAttachments(attachments);
 	if (files.length === 0) return null;
@@ -40,7 +42,9 @@ export default function EmailAttachmentList({
 			)}
 			<div className="flex flex-wrap gap-2">
 				{files.map((attachment) => {
-					const url = getAttachmentUrl(mailboxId, emailId, attachment.id);
+					const url = buildAttachmentUrl
+						? buildAttachmentUrl(emailId, attachment.id, attachment)
+						: getAttachmentUrl(mailboxId!, emailId, attachment.id);
 					const isImage = attachment.mimetype?.startsWith("image/");
 
 					if (isImage && onPreviewImage) {

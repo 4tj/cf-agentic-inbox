@@ -9,6 +9,12 @@
 	"compatibility_flags": [
 		"nodejs_compat"
 	],
+	"routes": [
+		{
+			"pattern": "sharemail.shopless.pro",
+			"custom_domain": true
+		}
+	],
 	"vars": {
 		// Production deploys must also define POLICY_AUD and TEAM_DOMAIN.
 		// TEAM_DOMAIN may be the base Access URL or the full /cdn-cgi/access/certs URL.
@@ -23,7 +29,9 @@
 		// "false" disables it entirely; unset or any other value keeps it enabled.
 		"AUTO_DRAFT_ENABLED": "true",
 		// Worker script name, used for the Email Routing catch-all "send to worker" action.
-		"WORKER_NAME": "cf-agentic-inbox"
+		"WORKER_NAME": "cf-agentic-inbox",
+		// Public read-only share endpoint. Do not put this hostname behind Cloudflare Access.
+		"SHARE_HOST": "sharemail.shopless.pro"
 	},
 	"send_email": [
 		{

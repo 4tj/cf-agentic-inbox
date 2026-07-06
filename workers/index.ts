@@ -23,6 +23,7 @@ import type { Env } from "./types";
 import { requireMailbox, type MailboxContext } from "./lib/mailbox";
 import { listDomains } from "./lib/domains";
 import { domainRoutes } from "./routes/domains";
+import { shareRoutes } from "./routes/share";
 
 type AppContext = Context<MailboxContext>;
 
@@ -86,6 +87,7 @@ app.use("/api/*", cors({
 }));
 app.use("/api/v1/mailboxes/:mailboxId/*", requireMailbox);
 app.route("/", domainRoutes);
+app.route("/", shareRoutes);
 
 // -- Config ---------------------------------------------------------
 
