@@ -68,6 +68,12 @@ export const SendEmailRequestSchema = z
 			z.string().email(),
 			z.object({ email: z.string().email(), name: z.string() }),
 		]),
+		reply_to: z
+			.union([
+				z.string().email(),
+				z.object({ email: z.string().email(), name: z.string() }),
+			])
+			.optional(),
 		subject: z.string(),
 		html: z.string().optional(),
 		text: z.string().optional(),
