@@ -183,7 +183,7 @@ app.get("/api/v1/mailboxes/:mailboxId/emails", async (c: AppContext) => {
 app.post("/api/v1/mailboxes/:mailboxId/emails", async (c: AppContext) => {
 	const mailboxId = c.req.param("mailboxId")!;
 	const body = SendEmailRequestSchema.parse(await c.req.json());
-	const { to, cc, bcc, from, subject, html, text, attachments, in_reply_to, references, thread_id } = body;
+	const { to, cc, bcc, from, reply_to, subject, html, text, attachments, in_reply_to, references, thread_id } = body;
 
 	let toStr: string, fromEmail: string, fromDomain: string;
 	try {
@@ -211,6 +211,7 @@ app.post("/api/v1/mailboxes/:mailboxId/emails", async (c: AppContext) => {
 			{ key: "to", value: Array.isArray(to) ? to.join(", ") : to },
 			...(cc ? [{ key: "cc", value: Array.isArray(cc) ? cc.join(", ") : cc }] : []),
 			...(bcc ? [{ key: "bcc", value: Array.isArray(bcc) ? bcc.join(", ") : bcc }] : []),
+			...(reply_to ? [{ key: "reply-to", value: typeof reply_to === "string" ? reply_to : `${reply_to.name} <${reply_to.email}>` }] : []),
 			{ key: "subject", value: subject }, { key: "date", value: new Date().toISOString() },
 			{ key: "message-id", value: `<${outgoingMessageId}>` },
 		]),
@@ -219,6 +220,7 @@ app.post("/api/v1/mailboxes/:mailboxId/emails", async (c: AppContext) => {
 	c.executionCtx.waitUntil(
 		sendEmail(c.env.EMAIL, {
 			to, cc, bcc, from, subject, html, text,
+			...(reply_to ? { replyTo: reply_to } : {}),
 			attachments: attachments?.map((att) => ({ content: att.content, filename: att.filename, type: att.type, disposition: att.disposition || "attachment", contentId: att.contentId })),
 			...(in_reply_to ? { headers: buildThreadingHeaders(in_reply_to, references || []) } : {}),
 		}).catch((e) => console.error("Deferred email delivery failed:", (e as Error).message)),
