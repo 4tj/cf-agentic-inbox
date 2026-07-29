@@ -8,7 +8,10 @@ TEAM_DOMAIN=https://your-team.cloudflareaccess.com
 # AUTO_DRAFT_ENABLED=false
 
 # Cloudflare API token for Bind Domain auto-configuration (required).
-# Scopes: Zone:Read, Email Routing:Edit, DNS:Edit, Email Sending:Edit.
+# Scopes: Zone:Read, Zone Settings:Edit, Email Routing:Edit, DNS:Edit, Email Sending:Edit.
+# Zone Settings:Edit covers the zone-level Email Routing settings — routing/enable
+# and the subaddressing GET/PATCH on /zones/{zone_id}/email/routing. Email Routing:Edit
+# only covers the routing rules (catch-all). Missing it means 403 on those calls.
 CLOUDFLARE_API_TOKEN=your-cloudflare-api-token
 
 # Public read-only share endpoint hostname.

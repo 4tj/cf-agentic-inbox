@@ -43,6 +43,7 @@ https://github.com/cloudflare/agentic-inbox/issues/4#issuecomment-4269118513
 - **Auto-draft on new email** — Agent automatically reads inbound emails and generates draft replies, always requiring explicit confirmation before sending. Can be globally disabled with the `AUTO_DRAFT_ENABLED` var (see Configuration)
 - **Configurable and persistent** — Custom system prompts per mailbox, persistent chat history, streaming markdown responses, and tool call visibility
 - **Read-only mailbox sharing** — Each mailbox can expose one resettable public Inbox link on `sharemail.shopless.pro`
+- **Subaddressing** — Mail to `address+detail@` lands in the `address@` mailbox with the tag preserved; toggled per domain from the home page (see "Subaddressing" below)
 
 ## Stack
 
@@ -62,9 +63,15 @@ npm run dev
 
 1. Set your domain in `wrangler.jsonc`
 2. Create an R2 bucket named `agentic-inbox`: `wrangler r2 bucket create agentic-inbox`
-3. Create a Cloudflare API token with **Zone:Read**, **Email Routing:Edit**, **DNS:Edit**, and **Email Sending:Edit**, then set it as a secret:
+3. Create a Cloudflare API token with **Zone:Read**, **Zone Settings:Edit**, **Email Routing:Edit**, **DNS:Edit**, and **Email Sending:Edit**, then set it as a secret:
    `wrangler secret put CLOUDFLARE_API_TOKEN`
    (for local dev, put `CLOUDFLARE_API_TOKEN=...` in `.dev.vars`).
+   **Zone Settings:Edit** is what the zone-level Email Routing settings sit under —
+   both `POST /zones/{zone_id}/email/routing/enable` and the subaddressing
+   `GET`/`PATCH /zones/{zone_id}/email/routing` require it. Without it Bind Domain
+   and the Subaddressing switch fail with 403. **Email Routing:Edit** only covers
+   the routing *rules* (the catch-all). If you created your token before this line
+   existed, edit it and add Zone Settings:Edit.
 4. Share links use the Worker custom domain configured in `wrangler.jsonc`:
    `sharemail.shopless.pro`. Keep the main app behind Cloudflare Access, but do
    not attach a Cloudflare Access policy to the share hostname or public visitors
@@ -75,14 +82,31 @@ npm run dev
 
 Use the **Bind Domain** button on the home page (next to New Mailbox) to add a
 domain that is already in your Cloudflare account. The app automatically enables
-Email Routing (with a catch-all rule to this Worker) and onboards the domain for
-Email Sending. Inbound routing works immediately; sending DNS records may take
-5–15 minutes to propagate for Cloudflare-managed zones. Domains are stored in R2
-(`config/domains.json`), not in the `DOMAINS` var.
+Email Routing (with a catch-all rule to this Worker), turns on subaddressing, and
+onboards the domain for Email Sending. Inbound routing works immediately; sending
+DNS records may take 5–15 minutes to propagate for Cloudflare-managed zones.
+Domains are stored in R2 (`config/domains.json`), not in the `DOMAINS` var.
 
 If you're upgrading from a `DOMAINS`-based setup, seed R2 once by binding each
 existing domain via the button (or writing `config/domains.json` directly) --
 the `DOMAINS` var is no longer read.
+
+### Subaddressing (`address+detail@`)
+
+Each bound domain shows a **Subaddressing** switch next to its name on the home
+page. It maps to the zone's `support_subaddress` Email Routing setting
+(`PATCH /zones/{zone_id}/email/routing`), which Cloudflare ships **off** by
+default — binding a domain turns it on, and domains bound before this existed can
+be switched on there. The state is read live from Cloudflare, so flipping it in
+the Cloudflare dashboard is reflected here too. Both the read and the write need
+**Zone Settings:Edit** on the API token (see Configuration); a switch stuck on an
+error message is usually a token missing that permission.
+
+With it on, mail to `info+acme@example.com` is delivered to the `info@example.com`
+mailbox and the full `+acme` address stays visible on the message, so a tag can be
+handed out per sender or per campaign without creating a mailbox for each one. A
+mailbox literally named `info+acme@example.com` still wins over the base one,
+mirroring Cloudflare's own rule precedence.
 
 ### Sharing a mailbox
 

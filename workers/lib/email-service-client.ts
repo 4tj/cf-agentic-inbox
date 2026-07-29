@@ -17,6 +17,8 @@ export interface EmailServiceClient {
 	enableRouting(zoneId: string): Promise<void>;
 	setCatchAllToWorker(zoneId: string, workerName: string): Promise<void>;
 	onboardSending(zoneId: string, domain: string): Promise<void>;
+	getSubaddressing(zoneId: string): Promise<boolean>;
+	setSubaddressing(zoneId: string, enabled: boolean): Promise<boolean>;
 }
 
 export function createEmailServiceClient(
@@ -71,6 +73,21 @@ export function createEmailServiceClient(
 				enabled: true,
 				name: "cf-agentic-inbox catch-all",
 			});
+		},
+		async getSubaddressing(zoneId) {
+			const settings = await cfRequest<{ support_subaddress?: boolean }>("GET", `/zones/${zoneId}/email/routing`);
+			return settings?.support_subaddress === true;
+		},
+		async setSubaddressing(zoneId, enabled) {
+			// `support_subaddress` decides whether Email Routing folds
+			// `user+detail@` into the `user@` rule. It is off by default and the
+			// dashboard is not the only way in — this is the documented API for it.
+			const settings = await cfRequest<{ support_subaddress?: boolean }>(
+				"PATCH",
+				`/zones/${zoneId}/email/routing`,
+				{ support_subaddress: enabled },
+			);
+			return settings?.support_subaddress === true;
 		},
 		async onboardSending(zoneId, domain) {
 			// Idempotent: after a partial bind failure the caller retries the whole flow,

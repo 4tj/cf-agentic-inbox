@@ -9,6 +9,11 @@ export interface DomainEntry {
 	boundAt: string;
 }
 
+export interface SubaddressingState {
+	domain: string;
+	enabled: boolean;
+}
+
 export interface MailboxShareLink {
 	mailboxId: string;
 	token?: string;
@@ -125,6 +130,10 @@ const api = {
 	bindDomain: (domain: string) => post<DomainEntry>("/api/v1/domains", { domain }),
 	unbindDomain: (domain: string) =>
 		del<{ ok: boolean }>(`/api/v1/domains/${encodeURIComponent(domain)}`),
+	getSubaddressing: (domain: string) =>
+		get<SubaddressingState>(`/api/v1/domains/${encodeURIComponent(domain)}/subaddressing`),
+	setSubaddressing: (domain: string, enabled: boolean) =>
+		put<SubaddressingState>(`/api/v1/domains/${encodeURIComponent(domain)}/subaddressing`, { enabled }),
 
 	// Mailboxes
 	listMailboxes: () => get<Mailbox[]>("/api/v1/mailboxes"),

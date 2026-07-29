@@ -29,7 +29,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe("domain routes", () => {
 	it("POST binds a domain when all Cloudflare steps succeed", async () => {
-		vi.stubGlobal("fetch", vi.fn(async (url: string) =>
+		vi.stubGlobal("fetch", vi.fn(async (url: string, _init?: RequestInit) =>
 			url.includes("/zones?name=")
 				? jsonResponse({ success: true, result: [{ id: "z1" }] })
 				: jsonResponse({ success: true, result: {} }),
@@ -89,7 +89,7 @@ describe("domain routes", () => {
 	});
 
 	it("POST returns 502 and persists nothing when a Cloudflare step fails", async () => {
-		vi.stubGlobal("fetch", vi.fn(async (url: string) =>
+		vi.stubGlobal("fetch", vi.fn(async (url: string, _init?: RequestInit) =>
 			url.includes("/zones?name=")
 				? jsonResponse({ success: true, result: [{ id: "z1" }] })
 				: jsonResponse({ success: false, errors: [{ code: 1, message: "boom" }] }, false, 400),
@@ -113,5 +113,100 @@ describe("domain routes", () => {
 		}, env(bucket, { CLOUDFLARE_API_TOKEN: "" }));
 		expect(res.status).toBe(500);
 		expect(await bucket.get("")).toBeNull();
+	});
+
+	it("POST turns subaddressing on for the newly bound zone", async () => {
+		const fetchMock = vi.fn(async (url: string, _init?: RequestInit) =>
+			url.includes("/zones?name=")
+				? jsonResponse({ success: true, result: [{ id: "z1" }] })
+				: jsonResponse({ success: true, result: { support_subaddress: true } }),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+		const res = await domainRoutes.request("/api/v1/domains", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ domain: "example.com" }),
+		}, env(fakeBucket()));
+		expect(res.status).toBe(201);
+		const patch = fetchMock.mock.calls.find(
+			(c) => (c[1] as RequestInit)?.method === "PATCH",
+		);
+		expect(patch?.[0]).toBe("https://api.cloudflare.com/client/v4/zones/z1/email/routing");
+		expect(JSON.parse((patch?.[1] as RequestInit).body as string)).toEqual({ support_subaddress: true });
+	});
+});
+
+describe("subaddressing routes", () => {
+	const bound = () => fakeBucket(JSON.stringify([{ domain: "a.com", boundAt: "t" }]));
+
+	it("GET reports the live Cloudflare state", async () => {
+		vi.stubGlobal("fetch", vi.fn(async (url: string, _init?: RequestInit) =>
+			url.includes("/zones?name=")
+				? jsonResponse({ success: true, result: [{ id: "z1" }] })
+				: jsonResponse({ success: true, result: { support_subaddress: true } }),
+		));
+		const res = await domainRoutes.request("/api/v1/domains/a.com/subaddressing", {}, env(bound()));
+		expect(res.status).toBe(200);
+		expect(await res.json()).toEqual({ domain: "a.com", enabled: true });
+	});
+
+	it("PUT enables subaddressing and echoes Cloudflare's answer", async () => {
+		const fetchMock = vi.fn(async (url: string, _init?: RequestInit) =>
+			url.includes("/zones?name=")
+				? jsonResponse({ success: true, result: [{ id: "z1" }] })
+				: jsonResponse({ success: true, result: { support_subaddress: true } }),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+		const res = await domainRoutes.request("/api/v1/domains/a.com/subaddressing", {
+			method: "PUT",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ enabled: true }),
+		}, env(bound()));
+		expect(res.status).toBe(200);
+		expect(await res.json()).toEqual({ domain: "a.com", enabled: true });
+		const patch = fetchMock.mock.calls.find((c) => (c[1] as RequestInit)?.method === "PATCH");
+		expect(JSON.parse((patch?.[1] as RequestInit).body as string)).toEqual({ support_subaddress: true });
+	});
+
+	it("PUT can turn subaddressing back off", async () => {
+		const fetchMock = vi.fn(async (url: string, _init?: RequestInit) =>
+			url.includes("/zones?name=")
+				? jsonResponse({ success: true, result: [{ id: "z1" }] })
+				: jsonResponse({ success: true, result: { support_subaddress: false } }),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+		const res = await domainRoutes.request("/api/v1/domains/a.com/subaddressing", {
+			method: "PUT",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ enabled: false }),
+		}, env(bound()));
+		expect(await res.json()).toEqual({ domain: "a.com", enabled: false });
+		const patch = fetchMock.mock.calls.find((c) => (c[1] as RequestInit)?.method === "PATCH");
+		expect(JSON.parse((patch?.[1] as RequestInit).body as string)).toEqual({ support_subaddress: false });
+	});
+
+	it("returns 404 for a domain that is not bound", async () => {
+		const res = await domainRoutes.request("/api/v1/domains/other.com/subaddressing", {}, env(bound()));
+		expect(res.status).toBe(404);
+	});
+
+	it("returns 500 when the token is missing", async () => {
+		const res = await domainRoutes.request(
+			"/api/v1/domains/a.com/subaddressing",
+			{},
+			env(bound(), { CLOUDFLARE_API_TOKEN: "" }),
+		);
+		expect(res.status).toBe(500);
+	});
+
+	it("returns 502 when Cloudflare rejects the call", async () => {
+		vi.stubGlobal("fetch", vi.fn(async (url: string, _init?: RequestInit) =>
+			url.includes("/zones?name=")
+				? jsonResponse({ success: true, result: [{ id: "z1" }] })
+				: jsonResponse({ success: false, errors: [{ code: 1, message: "boom" }] }, false, 400),
+		));
+		const res = await domainRoutes.request("/api/v1/domains/a.com/subaddressing", {}, env(bound()));
+		expect(res.status).toBe(502);
+		expect((await res.json() as { error: string }).error).toMatch(/boom/);
 	});
 });

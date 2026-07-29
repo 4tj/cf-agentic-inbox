@@ -66,6 +66,40 @@ describe("createEmailServiceClient", () => {
 		expect(fetchMock.mock.calls.every((c) => (c[1] as RequestInit)?.method !== "POST")).toBe(true);
 	});
 
+	it("setSubaddressing PATCHes support_subaddress and reports what Cloudflare echoed", async () => {
+		const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) =>
+			jsonResponse({ success: true, result: { support_subaddress: true } }),
+		);
+		const client = createEmailServiceClient("tok", fetchMock as unknown as typeof fetch);
+		expect(await client.setSubaddressing("z", true)).toBe(true);
+		expect(fetchMock.mock.calls[0][0]).toBe("https://api.cloudflare.com/client/v4/zones/z/email/routing");
+		const opts = fetchMock.mock.calls[0][1] as RequestInit;
+		expect(opts.method).toBe("PATCH");
+		expect(JSON.parse(opts.body as string)).toEqual({ support_subaddress: true });
+	});
+
+	it("setSubaddressing reports false when Cloudflare did not turn it on", async () => {
+		const fetchMock = vi.fn(async () => jsonResponse({ success: true, result: { support_subaddress: false } }));
+		const client = createEmailServiceClient("tok", fetchMock as unknown as typeof fetch);
+		expect(await client.setSubaddressing("z", true)).toBe(false);
+	});
+
+	it("getSubaddressing reads support_subaddress from the zone settings", async () => {
+		const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) =>
+			jsonResponse({ success: true, result: { id: "s1", enabled: true, support_subaddress: true } }),
+		);
+		const client = createEmailServiceClient("tok", fetchMock as unknown as typeof fetch);
+		expect(await client.getSubaddressing("z")).toBe(true);
+		expect(fetchMock.mock.calls[0][0]).toBe("https://api.cloudflare.com/client/v4/zones/z/email/routing");
+		expect((fetchMock.mock.calls[0][1] as RequestInit).method).toBe("GET");
+	});
+
+	it("getSubaddressing treats a missing support_subaddress as off", async () => {
+		const fetchMock = vi.fn(async () => jsonResponse({ success: true, result: { id: "s1", enabled: true } }));
+		const client = createEmailServiceClient("tok", fetchMock as unknown as typeof fetch);
+		expect(await client.getSubaddressing("z")).toBe(false);
+	});
+
 	it("surfaces a non-JSON error body in the thrown message", async () => {
 		const fetchMock = vi.fn(async () => ({ ok: false, status: 503, text: async () => "<html>503 Service Unavailable</html>" } as unknown as Response));
 		const client = createEmailServiceClient("tok", fetchMock as unknown as typeof fetch);

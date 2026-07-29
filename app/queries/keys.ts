@@ -34,4 +34,5 @@ export const queryKeys = {
 	},
 	config: ["config"] as const,
 	domains: ["domains"] as const,
+	subaddressing: (domain: string) => ["domains", domain, "subaddressing"] as const,
 };
