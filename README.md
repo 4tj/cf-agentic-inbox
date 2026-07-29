@@ -91,6 +91,12 @@ not work in this mode.
    `sharemail.shopless.pro`. Keep the main app behind Cloudflare Access, but do
    not attach a Cloudflare Access policy to the share hostname or public visitors
    will be challenged before the Worker can serve the read-only page.
+   **Add every hostname for this Worker to the `routes` array in `wrangler.jsonc`,
+   not from the Cloudflare dashboard.** Each deploy overwrites the Worker's live
+   routes with exactly that list, so a custom domain attached only from the
+   dashboard silently disappears on the next deploy. The Worker currently serves
+   `mail.shopless.pro` (main UI, behind Access) and `sharemail.shopless.pro`
+   (public share endpoint).
 5. Inbound mail is classified by the AI spam filter and filed into Inbox or Spam;
    there is nothing to configure. The agent no longer drafts a reply on its own
    when mail arrives — ask it to draft from the side panel instead.
