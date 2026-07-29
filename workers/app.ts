@@ -115,13 +115,9 @@ app.all("*", (c) => {
 // Export the Hono app as the default export with an email handler
 export default {
 	fetch: app.fetch,
-	async email(
-		event: ForwardableEmailMessage,
-		env: Env,
-		ctx: ExecutionContext,
-	) {
+	async email(event: ForwardableEmailMessage, env: Env) {
 		try {
-			await receiveEmail(event, env, ctx);
+			await receiveEmail(event, env);
 		} catch (e) {
 			console.error("Failed to process incoming email:", (e as Error).message, (e as Error).stack);
 			// Re-throw so Cloudflare's email routing can retry delivery or bounce the message.

@@ -22,7 +22,7 @@ export const Folders = {
 export type FolderId = (typeof Folders)[keyof typeof Folders];
 
 /**
- * System folder IDs that appear in the sidebar (excludes spam).
+ * System folder IDs that appear in the sidebar.
  * Order here matches the sidebar display order.
  */
 export const SYSTEM_FOLDER_IDS: readonly FolderId[] = [
@@ -30,6 +30,7 @@ export const SYSTEM_FOLDER_IDS: readonly FolderId[] = [
 	Folders.SENT,
 	Folders.DRAFT,
 	Folders.ARCHIVE,
+	Folders.SPAM,
 	Folders.TRASH,
 ];
 
