@@ -22,6 +22,7 @@ import { Folders } from "../shared/folders";
 import type { Env } from "./types";
 import { requireMailbox, type MailboxContext } from "./lib/mailbox";
 import { listDomains } from "./lib/domains";
+import { parseRecipient } from "./lib/subaddress";
 import { domainRoutes } from "./routes/domains";
 import { shareRoutes } from "./routes/share";
 
@@ -376,9 +377,11 @@ async function receiveEmail(event: { raw: ReadableStream; rawSize: number; to: s
 	// Route by the SMTP envelope recipient (RCPT TO). Cloudflare always provides it
 	// and it reflects who the message was actually delivered to — unlike the To:
 	// header, which can be missing or forged (Bcc, undisclosed-recipients, spam).
-	const mailboxId = event.to?.toLowerCase();
-	if (!mailboxId) { console.log(`Ignoring email: empty envelope recipient.`); return; }
-	if (allowedAddresses.length > 0 && !allowedAddresses.includes(mailboxId)) {
+	// With subaddressing on the zone, this is the full `user+detail@domain`.
+	const envelopeTo = event.to?.trim().toLowerCase();
+	if (!envelopeTo) { console.log(`Ignoring email: empty envelope recipient.`); return; }
+	const { base, tag } = parseRecipient(envelopeTo);
+	if (allowedAddresses.length > 0 && !allowedAddresses.includes(envelopeTo) && !allowedAddresses.includes(base)) {
 		console.log(`Ignoring email: envelope recipient not in EMAIL_ADDRESSES.`); return;
 	}
 
@@ -387,7 +390,16 @@ async function receiveEmail(event: { raw: ReadableStream; rawSize: number; to: s
 	const isSpam = !parsedEmail.to?.length || !parsedEmail.to[0].address;
 
 	const messageId = crypto.randomUUID();
-	if (!(await env.BUCKET.head(`mailboxes/${mailboxId}.json`))) { console.log(`Ignoring email for ${mailboxId}: mailbox does not exist`); return; }
+	// A mailbox named after the full subaddress wins over the base one, mirroring
+	// Cloudflare's own rule precedence — a pre-existing `user+detail@` mailbox
+	// keeps receiving its mail instead of silently folding into `user@`.
+	const mailboxId = (await env.BUCKET.head(`mailboxes/${envelopeTo}.json`))
+		? envelopeTo
+		: base !== envelopeTo && (await env.BUCKET.head(`mailboxes/${base}.json`))
+			? base
+			: null;
+	if (!mailboxId) { console.log(`Ignoring email for ${envelopeTo}: mailbox does not exist`); return; }
+	if (tag && mailboxId === base) console.log(`Delivering subaddressed email for ${envelopeTo} to mailbox ${mailboxId} (tag "${tag}")`);
 
 	const stub = env.MAILBOX.get(env.MAILBOX.idFromName(mailboxId));
 
@@ -417,7 +429,9 @@ async function receiveEmail(event: { raw: ReadableStream; rawSize: number; to: s
 
 	await stub.createEmail(isSpam ? Folders.SPAM : Folders.INBOX, {
 		id: messageId, subject: parsedEmail.subject || "",
-		sender: (parsedEmail.from?.address || "").toLowerCase(), recipient: (headerRecipients.length ? headerRecipients : [mailboxId]).join(", "),
+		// Falls back to the full envelope recipient (not the mailbox key) so a
+		// `+detail` delivery stays visible even without a usable To: header.
+		sender: (parsedEmail.from?.address || "").toLowerCase(), recipient: (headerRecipients.length ? headerRecipients : [envelopeTo]).join(", "),
 		cc: ccRecipients.join(", ") || null, bcc: bccRecipients.join(", ") || null,
 		date: new Date().toISOString(), // uses receive time, not the email's Date header
 		body: parsedEmail.html || parsedEmail.text || "",

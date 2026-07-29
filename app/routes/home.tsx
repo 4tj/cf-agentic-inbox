@@ -13,7 +13,7 @@ import {
 	Text,
 	useKumoToastManager,
 } from "@cloudflare/kumo";
-import { EnvelopeIcon, GlobeIcon, PlusIcon, TrashIcon, XIcon } from "@phosphor-icons/react";
+import { EnvelopeIcon, GlobeIcon, PlusIcon, TrashIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link as RouterLink } from "react-router";
@@ -25,6 +25,7 @@ import {
 } from "~/queries/mailboxes";
 import { queryKeys } from "~/queries/keys";
 import { useBindDomain, useUnbindDomain } from "~/queries/domains";
+import { DomainChip } from "~/components/DomainChip";
 
 export function meta() {
 	return [{ title: "Agentic Inbox" }];
@@ -224,17 +225,7 @@ export default function HomeRoute() {
 					{domains.length > 0 && (
 						<div className="mt-2 flex flex-wrap items-center gap-1.5">
 							{domains.map((d) => (
-								<span key={d} className="inline-flex items-center gap-1 rounded-md bg-kumo-fill px-2 py-0.5 text-sm text-kumo-subtle">
-									{d}
-									<Button
-										variant="ghost"
-										size="sm"
-										shape="square"
-										icon={<XIcon size={12} />}
-										aria-label={`Unbind ${d}`}
-										onClick={() => setDomainToUnbind(d)}
-									/>
-								</span>
+								<DomainChip key={d} domain={d} onUnbind={() => setDomainToUnbind(d)} />
 							))}
 						</div>
 					)}

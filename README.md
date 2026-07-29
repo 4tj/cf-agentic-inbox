@@ -43,6 +43,7 @@ https://github.com/cloudflare/agentic-inbox/issues/4#issuecomment-4269118513
 - **Auto-draft on new email** — Agent automatically reads inbound emails and generates draft replies, always requiring explicit confirmation before sending. Can be globally disabled with the `AUTO_DRAFT_ENABLED` var (see Configuration)
 - **Configurable and persistent** — Custom system prompts per mailbox, persistent chat history, streaming markdown responses, and tool call visibility
 - **Read-only mailbox sharing** — Each mailbox can expose one resettable public Inbox link on `sharemail.shopless.pro`
+- **Subaddressing** — Mail to `address+detail@` lands in the `address@` mailbox with the tag preserved; toggled per domain from the home page (see "Subaddressing" below)
 
 ## Stack
 
@@ -75,14 +76,29 @@ npm run dev
 
 Use the **Bind Domain** button on the home page (next to New Mailbox) to add a
 domain that is already in your Cloudflare account. The app automatically enables
-Email Routing (with a catch-all rule to this Worker) and onboards the domain for
-Email Sending. Inbound routing works immediately; sending DNS records may take
-5–15 minutes to propagate for Cloudflare-managed zones. Domains are stored in R2
-(`config/domains.json`), not in the `DOMAINS` var.
+Email Routing (with a catch-all rule to this Worker), turns on subaddressing, and
+onboards the domain for Email Sending. Inbound routing works immediately; sending
+DNS records may take 5–15 minutes to propagate for Cloudflare-managed zones.
+Domains are stored in R2 (`config/domains.json`), not in the `DOMAINS` var.
 
 If you're upgrading from a `DOMAINS`-based setup, seed R2 once by binding each
 existing domain via the button (or writing `config/domains.json` directly) --
 the `DOMAINS` var is no longer read.
+
+### Subaddressing (`address+detail@`)
+
+Each bound domain shows a **Subaddressing** switch next to its name on the home
+page. It maps to the zone's `support_subaddress` Email Routing setting
+(`PATCH /zones/{zone_id}/email/routing`), which Cloudflare ships **off** by
+default — binding a domain turns it on, and domains bound before this existed can
+be switched on there. The state is read live from Cloudflare, so flipping it in
+the Cloudflare dashboard is reflected here too.
+
+With it on, mail to `info+acme@example.com` is delivered to the `info@example.com`
+mailbox and the full `+acme` address stays visible on the message, so a tag can be
+handed out per sender or per campaign without creating a mailbox for each one. A
+mailbox literally named `info+acme@example.com` still wins over the base one,
+mirroring Cloudflare's own rule precedence.
 
 ### Sharing a mailbox
 
