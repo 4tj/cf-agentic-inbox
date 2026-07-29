@@ -17,6 +17,7 @@ function fakeAi(verdict: string | (() => never)) {
 
 const EMAIL = {
 	sender: "promo@evil.example",
+	recipient: "me@myinbox.example",
 	subject: "You won",
 	body: "Claim your prize now.",
 };
@@ -73,5 +74,12 @@ describe("isSpamEmail", () => {
 		const { ai, runs } = fakeAi("SPAM");
 		expect(await isSpamEmail(ai, { ...EMAIL, body: null })).toBe(true);
 		expect(userContent(runs)).toContain("(empty body)");
+	});
+
+	it("labels an absent recipient as hidden rather than skipping the call", async () => {
+		const { ai, runs } = fakeAi("HAM");
+		// A hidden recipient is a signal for the model to weigh, not a verdict.
+		expect(await isSpamEmail(ai, { ...EMAIL, recipient: "" })).toBe(false);
+		expect(userContent(runs)).toContain("To: (hidden)");
 	});
 });

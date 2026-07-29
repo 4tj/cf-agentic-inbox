@@ -386,10 +386,6 @@ async function receiveEmail(event: { raw: ReadableStream; rawSize: number; to: s
 		console.log(`Ignoring email: envelope recipient not in EMAIL_ADDRESSES.`); return;
 	}
 
-	// A message whose visible To: header carries no address is a hidden / Bcc-style
-	// delivery — in practice almost always spam, and cheap to spot without a model.
-	const hasHiddenRecipient = !parsedEmail.to?.length || !parsedEmail.to[0].address;
-
 	const messageId = crypto.randomUUID();
 	// A mailbox named after the full subaddress wins over the base one, mirroring
 	// Cloudflare's own rule precedence — a pre-existing `user+detail@` mailbox
@@ -433,9 +429,15 @@ async function receiveEmail(event: { raw: ReadableStream; rawSize: number; to: s
 
 	// Every message addressed to a real mailbox is classified before it is
 	// filed, so it lands in the right folder on the first write and never
-	// flickers through the Inbox. The header heuristic short-circuits the
-	// model call: a hidden-recipient delivery is spam either way.
-	const isSpam = hasHiddenRecipient || (await isSpamEmail(env.AI, { sender, subject, body }));
+	// flickers through the Inbox. A missing To: header is handed to the model
+	// as one signal rather than deciding the folder on its own — legitimate
+	// Bcc deliveries carry no visible recipient either.
+	const isSpam = await isSpamEmail(env.AI, {
+		sender,
+		recipient: headerRecipients.join(", "),
+		subject,
+		body,
+	});
 
 	await stub.createEmail(isSpam ? Folders.SPAM : Folders.INBOX, {
 		id: messageId, subject,
@@ -450,7 +452,7 @@ async function receiveEmail(event: { raw: ReadableStream; rawSize: number; to: s
 	}, attachmentData);
 
 	if (isSpam) {
-		console.log(`Filed email for ${mailboxId} into Spam (${hasHiddenRecipient ? "no usable To header" : "AI classifier"}).`);
+		console.log(`Filed email for ${mailboxId} into Spam (AI classifier).`);
 	}
 }
 

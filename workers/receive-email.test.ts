@@ -141,13 +141,30 @@ const PLUS_ADDRESSED = [
 ].join("\r\n");
 
 describe("receiveEmail", () => {
-	it("files an email with no usable To header into Spam without asking the classifier", async () => {
+	it("asks the classifier about an email with no usable To header instead of assuming spam", async () => {
 		const { env, calls } = makeHarness();
+		await deliver(env, NO_TO_HEADER, { to: "me@myinbox.example", from: "spammer@evil.example" });
+
+		expect(calls.aiRuns).toHaveLength(1);
+		expect(calls.createEmail).toHaveLength(1);
+		// Default verdict is HAM: a hidden recipient alone must not bury the mail.
+		expect(calls.createEmail[0].folder).toBe(Folders.INBOX);
+	});
+
+	it("files a hidden-recipient email into Spam only when the classifier says SPAM", async () => {
+		const { env, calls } = makeHarness({ spamVerdict: "SPAM" });
 		await deliver(env, NO_TO_HEADER, { to: "me@myinbox.example", from: "spammer@evil.example" });
 
 		expect(calls.createEmail).toHaveLength(1);
 		expect(calls.createEmail[0].folder).toBe(Folders.SPAM);
-		expect(calls.aiRuns).toHaveLength(0);
+	});
+
+	it("marks the recipient as hidden for the classifier when the To: header is unusable", async () => {
+		const { env, calls } = makeHarness();
+		await deliver(env, NO_TO_HEADER, { to: "me@myinbox.example", from: "spammer@evil.example" });
+
+		const messages = calls.aiRuns[0].messages as Array<{ role: string; content: string }>;
+		expect(messages.find((m) => m.role === "user")!.content).toContain("To: (hidden)");
 	});
 
 	it("delivers a normal direct email to the Inbox when the classifier says HAM", async () => {
@@ -175,13 +192,14 @@ describe("receiveEmail", () => {
 		expect(calls.createEmail[0].folder).toBe(Folders.INBOX);
 	});
 
-	it("passes the sender, subject and body to the classifier", async () => {
+	it("passes the sender, recipient, subject and body to the classifier", async () => {
 		const { env, calls } = makeHarness();
 		await deliver(env, DIRECT, { to: "me@myinbox.example", from: "alice@friend.example" });
 
 		const messages = calls.aiRuns[0].messages as Array<{ role: string; content: string }>;
 		const userContent = messages.find((m) => m.role === "user")!.content;
 		expect(userContent).toContain("alice@friend.example");
+		expect(userContent).toContain("To: me@myinbox.example");
 		expect(userContent).toContain("Lunch?");
 		expect(userContent).toContain("Are you free?");
 	});
@@ -230,12 +248,17 @@ describe("receiveEmail", () => {
 		});
 
 		it("falls back to the envelope address when the To: header is unusable", async () => {
-			const { env, calls } = makeHarness({ mailboxes: ["me@myinbox.example"] });
+			const { env, calls } = makeHarness({
+				mailboxes: ["me@myinbox.example"],
+				spamVerdict: "SPAM",
+			});
 			await deliver(env, NO_TO_HEADER, {
 				to: "me+shop@myinbox.example",
 				from: "spammer@evil.example",
 			});
 
+			// The stored recipient falls back to the envelope address, but the
+			// classifier is still told the visible recipient was hidden.
 			expect(calls.createEmail[0].data.recipient).toBe("me+shop@myinbox.example");
 			expect(calls.createEmail[0].folder).toBe(Folders.SPAM);
 		});
