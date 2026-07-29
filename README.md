@@ -59,6 +59,21 @@ npm install
 npm run dev
 ```
 
+`npm run dev` needs a Cloudflare login (`wrangler login`), because Workers AI
+and Email Sending are remote-only bindings and the dev server opens a proxy
+session for them. Without it startup fails with
+`Failed to fetch auth token: 400 Bad Request`.
+
+For UI work and browser QA on a machine with no Cloudflare credentials, use:
+
+```bash
+npm run dev:local
+```
+
+That skips remote bindings, so the app, its Durable Objects and R2 all run
+locally. Spam classification and outbound email need the real bindings and do
+not work in this mode.
+
 ### Configuration
 
 1. Set your domain in `wrangler.jsonc`
