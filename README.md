@@ -63,9 +63,15 @@ npm run dev
 
 1. Set your domain in `wrangler.jsonc`
 2. Create an R2 bucket named `agentic-inbox`: `wrangler r2 bucket create agentic-inbox`
-3. Create a Cloudflare API token with **Zone:Read**, **Email Routing:Edit**, **DNS:Edit**, and **Email Sending:Edit**, then set it as a secret:
+3. Create a Cloudflare API token with **Zone:Read**, **Zone Settings:Edit**, **Email Routing:Edit**, **DNS:Edit**, and **Email Sending:Edit**, then set it as a secret:
    `wrangler secret put CLOUDFLARE_API_TOKEN`
    (for local dev, put `CLOUDFLARE_API_TOKEN=...` in `.dev.vars`).
+   **Zone Settings:Edit** is what the zone-level Email Routing settings sit under —
+   both `POST /zones/{zone_id}/email/routing/enable` and the subaddressing
+   `GET`/`PATCH /zones/{zone_id}/email/routing` require it. Without it Bind Domain
+   and the Subaddressing switch fail with 403. **Email Routing:Edit** only covers
+   the routing *rules* (the catch-all). If you created your token before this line
+   existed, edit it and add Zone Settings:Edit.
 4. Share links use the Worker custom domain configured in `wrangler.jsonc`:
    `sharemail.shopless.pro`. Keep the main app behind Cloudflare Access, but do
    not attach a Cloudflare Access policy to the share hostname or public visitors
@@ -92,7 +98,9 @@ page. It maps to the zone's `support_subaddress` Email Routing setting
 (`PATCH /zones/{zone_id}/email/routing`), which Cloudflare ships **off** by
 default — binding a domain turns it on, and domains bound before this existed can
 be switched on there. The state is read live from Cloudflare, so flipping it in
-the Cloudflare dashboard is reflected here too.
+the Cloudflare dashboard is reflected here too. Both the read and the write need
+**Zone Settings:Edit** on the API token (see Configuration); a switch stuck on an
+error message is usually a token missing that permission.
 
 With it on, mail to `info+acme@example.com` is delivered to the `info@example.com`
 mailbox and the full `+acme` address stays visible on the message, so a tag can be
