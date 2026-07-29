@@ -40,7 +40,7 @@ https://github.com/cloudflare/agentic-inbox/issues/4#issuecomment-4269118513
 - **Full email client** — Send and receive emails via Cloudflare Email Routing with a rich text composer, reply/forward threading, folder organization, search, and attachments
 - **Per-mailbox isolation** — Each mailbox runs in its own Durable Object with SQLite storage and R2 for attachments
 - **Built-in AI agent** — Side panel with 9 email tools for reading, searching, drafting, and sending
-- **Auto-draft on new email** — Agent automatically reads inbound emails and generates draft replies, always requiring explicit confirmation before sending. Can be globally disabled with the `AUTO_DRAFT_ENABLED` var (see Configuration)
+- **AI spam filtering on new email** — Every inbound message is classified by Workers AI before it is filed; junk goes straight to the Spam folder, everything else to the Inbox. The classifier fails open, so a model error delivers to the Inbox rather than hiding real mail
 - **Configurable and persistent** — Custom system prompts per mailbox, persistent chat history, streaming markdown responses, and tool call visibility
 - **Read-only mailbox sharing** — Each mailbox can expose one resettable public Inbox link on `sharemail.shopless.pro`
 - **Subaddressing** — Mail to `address+detail@` lands in the `address@` mailbox with the tag preserved; toggled per domain from the home page (see "Subaddressing" below)
@@ -59,6 +59,21 @@ npm install
 npm run dev
 ```
 
+`npm run dev` needs a Cloudflare login (`wrangler login`), because Workers AI
+and Email Sending are remote-only bindings and the dev server opens a proxy
+session for them. Without it startup fails with
+`Failed to fetch auth token: 400 Bad Request`.
+
+For UI work and browser QA on a machine with no Cloudflare credentials, use:
+
+```bash
+npm run dev:local
+```
+
+That skips remote bindings, so the app, its Durable Objects and R2 all run
+locally. Spam classification and outbound email need the real bindings and do
+not work in this mode.
+
 ### Configuration
 
 1. Set your domain in `wrangler.jsonc`
@@ -76,7 +91,9 @@ npm run dev
    `sharemail.shopless.pro`. Keep the main app behind Cloudflare Access, but do
    not attach a Cloudflare Access policy to the share hostname or public visitors
    will be challenged before the Worker can serve the read-only page.
-5. (Optional) Toggle auto-drafting via the `AUTO_DRAFT_ENABLED` var in `wrangler.jsonc`. Set it to `"false"` to globally disable the agent from auto-drafting a reply on every inbound email; unset or any other value keeps it enabled. This only affects the automatic on-new-email trigger — you can still ask the agent to draft manually from the side panel. **Note:** this repo ships with auto-draft disabled by default (`AUTO_DRAFT_ENABLED: "false"` in `wrangler.jsonc`); set it to `"true"` (or remove it) to enable.
+5. Inbound mail is classified by the AI spam filter and filed into Inbox or Spam;
+   there is nothing to configure. The agent no longer drafts a reply on its own
+   when mail arrives — ask it to draft from the side panel instead.
 
 ### Binding a domain
 

@@ -7,6 +7,7 @@ import { cors } from "hono/cors";
 import PostalMime from "postal-mime";
 import { z } from "zod";
 import { sendEmail } from "./email-sender";
+import { isSpamEmail } from "./lib/ai";
 import { storeAttachments, type StoredAttachment } from "./lib/attachments";
 import {
 	validateSender,
@@ -363,7 +364,7 @@ async function streamToArrayBuffer(stream: ReadableStream, streamSize: number) {
 	return result;
 }
 
-async function receiveEmail(event: { raw: ReadableStream; rawSize: number; to: string; from: string }, env: Env, ctx: ExecutionContext) {
+async function receiveEmail(event: { raw: ReadableStream; rawSize: number; to: string; from: string }, env: Env) {
 	const rawEmail = await streamToArrayBuffer(event.raw, event.rawSize);
 	const parsedEmail = await new PostalMime().parse(rawEmail);
 
@@ -384,10 +385,6 @@ async function receiveEmail(event: { raw: ReadableStream; rawSize: number; to: s
 	if (allowedAddresses.length > 0 && !allowedAddresses.includes(envelopeTo) && !allowedAddresses.includes(base)) {
 		console.log(`Ignoring email: envelope recipient not in EMAIL_ADDRESSES.`); return;
 	}
-
-	// A message whose visible To: header carries no address is a hidden / Bcc-style
-	// delivery — in practice almost always spam. File it in Spam, not the Inbox.
-	const isSpam = !parsedEmail.to?.length || !parsedEmail.to[0].address;
 
 	const messageId = crypto.randomUUID();
 	// A mailbox named after the full subaddress wins over the base one, mirroring
@@ -426,38 +423,37 @@ async function receiveEmail(event: { raw: ReadableStream; rawSize: number; to: s
 	}
 
 	const originalMessageId = parsedEmail.messageId ? extractMsgId(parsedEmail.messageId) : null;
+	const sender = (parsedEmail.from?.address || "").toLowerCase();
+	const subject = parsedEmail.subject || "";
+	const body = parsedEmail.html || parsedEmail.text || "";
+
+	// Every message addressed to a real mailbox is classified before it is
+	// filed, so it lands in the right folder on the first write and never
+	// flickers through the Inbox. A missing To: header is handed to the model
+	// as one signal rather than deciding the folder on its own — legitimate
+	// Bcc deliveries carry no visible recipient either.
+	const isSpam = await isSpamEmail(env.AI, {
+		sender,
+		recipient: headerRecipients.join(", "),
+		subject,
+		body,
+	});
 
 	await stub.createEmail(isSpam ? Folders.SPAM : Folders.INBOX, {
-		id: messageId, subject: parsedEmail.subject || "",
+		id: messageId, subject,
 		// Falls back to the full envelope recipient (not the mailbox key) so a
 		// `+detail` delivery stays visible even without a usable To: header.
-		sender: (parsedEmail.from?.address || "").toLowerCase(), recipient: (headerRecipients.length ? headerRecipients : [envelopeTo]).join(", "),
+		sender, recipient: (headerRecipients.length ? headerRecipients : [envelopeTo]).join(", "),
 		cc: ccRecipients.join(", ") || null, bcc: bccRecipients.join(", ") || null,
 		date: new Date().toISOString(), // uses receive time, not the email's Date header
-		body: parsedEmail.html || parsedEmail.text || "",
+		body,
 		in_reply_to: inReplyTo, email_references: emailReferences.length > 0 ? JSON.stringify(emailReferences) : null,
 		thread_id: threadId, message_id: originalMessageId, raw_headers: JSON.stringify(parsedEmail.headers),
 	}, attachmentData);
 
-	// Spam never triggers the agent — no auto-draft for junk.
 	if (isSpam) {
-		console.log(`Filed email for ${mailboxId} into Spam (no usable To header); skipping agent trigger.`);
-		return;
+		console.log(`Filed email for ${mailboxId} into Spam (AI classifier).`);
 	}
-
-	// Global kill-switch: only trigger the agent's auto-draft when AUTO_DRAFT_ENABLED
-	// is not explicitly "false". Unset (or any other value) preserves default behavior.
-	const autoDraftEnabled = String(env.AUTO_DRAFT_ENABLED ?? "true") !== "false";
-	if (!autoDraftEnabled) {
-		console.log(`Auto-draft disabled (AUTO_DRAFT_ENABLED=false); skipping agent trigger for ${mailboxId}`);
-		return;
-	}
-
-	const agentStub = env.EMAIL_AGENT.get(env.EMAIL_AGENT.idFromName(mailboxId));
-	ctx.waitUntil(agentStub.fetch(new Request("https://agents/onNewEmail", {
-		method: "POST", headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({ mailboxId, emailId: messageId, sender: (parsedEmail.from?.address || "").toLowerCase(), subject: parsedEmail.subject || "", threadId }),
-	})).catch((e) => console.error("Auto-draft trigger failed:", (e as Error).message)));
 }
 
 export { app, receiveEmail };
