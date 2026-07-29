@@ -9,8 +9,18 @@
 	"compatibility_flags": [
 		"nodejs_compat"
 	],
+	// Source of truth for this Worker's routes: every deploy overwrites the
+	// Worker's live routes with exactly this list, so a custom domain attached
+	// from the Cloudflare dashboard but missing here is dropped on next deploy.
+	// Add the hostname here instead of in the dashboard.
 	"routes": [
 		{
+			// Main inbox UI, behind Cloudflare Access.
+			"pattern": "mail.shopless.pro",
+			"custom_domain": true
+		},
+		{
+			// Public read-only share endpoint (SHARE_HOST) — no Access policy.
 			"pattern": "sharemail.shopless.pro",
 			"custom_domain": true
 		}
