@@ -19,7 +19,6 @@ import { Folders } from "../../shared/folders";
 import type { MailboxContext } from "../lib/mailbox";
 
 type AppContext = Context<MailboxContext>;
-type RateLimitStub = { checkSendRateLimit: () => Promise<string | null> };
 
 export async function handleReplyEmail(c: AppContext) {
 	const mailboxId = c.req.param("mailboxId") ?? "";
@@ -46,12 +45,6 @@ export async function handleReplyEmail(c: AppContext) {
 	}
 
 	const { messageId, outgoingMessageId } = generateMessageId(fromDomain);
-
-	const rateLimitError = await (stub as unknown as RateLimitStub)
-		.checkSendRateLimit();
-	if (rateLimitError) {
-		return c.json({ error: rateLimitError }, 429);
-	}
 
 	const attachmentData = await storeAttachments(c.env.BUCKET, messageId, attachments);
 
@@ -136,12 +129,6 @@ export async function handleForwardEmail(c: AppContext) {
 	}
 
 	const { messageId, outgoingMessageId } = generateMessageId(fromDomain);
-
-	const rateLimitError = await (stub as unknown as RateLimitStub)
-		.checkSendRateLimit();
-	if (rateLimitError) {
-		return c.json({ error: rateLimitError }, 429);
-	}
 
 	const attachmentData = await storeAttachments(c.env.BUCKET, messageId, attachments);
 

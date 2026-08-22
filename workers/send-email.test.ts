@@ -19,9 +19,6 @@ function makeSendEnv(mailboxId: string) {
 			},
 			get() {
 				return {
-					async checkSendRateLimit() {
-						return null;
-					},
 					async createEmail(_folder: string, email: Record<string, unknown>) {
 						created.push(email);
 					},
@@ -105,5 +102,20 @@ describe("POST /api/v1/mailboxes/:mailboxId/emails reply_to", () => {
 		expect((await postEmail(without, {})).status).toBe(202);
 		await without.flush();
 		expect(without.sent[0]).not.toHaveProperty("replyTo");
+	});
+});
+
+describe("POST /api/v1/mailboxes/:mailboxId/emails send rate limit", () => {
+	it("accepts more sends than the removed 20/hour and 100/day caps", async () => {
+		const ctx = makeSendEnv(MAILBOX);
+		const statuses: number[] = [];
+		for (let i = 0; i < 120; i++) {
+			statuses.push((await postEmail(ctx, { subject: `msg ${i}` })).status);
+		}
+		await ctx.flush();
+
+		expect(statuses.every((s) => s === 202)).toBe(true);
+		expect(statuses).not.toContain(429);
+		expect(ctx.sent).toHaveLength(120);
 	});
 });
