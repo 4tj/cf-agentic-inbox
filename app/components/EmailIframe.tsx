@@ -25,7 +25,9 @@ interface EmailIframeProps {
  *   The `allow-scripts` flag is required for this, but scripts inside
  *   the opaque-origin sandbox cannot access anything useful.
  * - A strict CSP meta tag blocks external resource loads inside the
- *   iframe as a defense-in-depth layer.
+ *   iframe as a defense-in-depth layer. `img-src` includes `'self'`
+ *   because inline `cid:` images are rewritten to this app's attachment
+ *   endpoint, which is plain http on a local dev server.
  */
 export default function EmailIframe({ body, autoSize }: EmailIframeProps) {
 	const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -91,7 +93,7 @@ export default function EmailIframe({ body, autoSize }: EmailIframeProps) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data: cid: https:; script-src 'unsafe-inline';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data: cid: https:; script-src 'unsafe-inline';">
 <style>
 * { box-sizing: border-box; }
 html {

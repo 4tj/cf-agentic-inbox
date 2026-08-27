@@ -27,6 +27,7 @@ export default function ComposePanel() {
 		setSubject,
 		body,
 		setBody,
+		attachments,
 		error,
 		isSavingDraft,
 		isSending,
@@ -144,6 +145,8 @@ export default function ComposePanel() {
 						<RichTextEditor
 							value={body}
 							onChange={setBody}
+							attachments={attachments}
+							disabled={isSending}
 						/>
 					</div>
 				</div>
