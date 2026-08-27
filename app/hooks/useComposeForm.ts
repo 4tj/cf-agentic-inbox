@@ -3,10 +3,18 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 import { useKumoToastManager } from "@cloudflare/kumo";
-import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+	MAX_TOTAL_ATTACHMENT_BYTES,
+	type OutgoingAttachment,
+	base64ByteLength,
+	extractInlineImages,
+	inlineImageBytes,
+} from "shared/compose-attachments";
 import {
 	buildQuotedReplyBlock,
 	escapeHtml,
+	formatBytes,
 	formatComposeDate,
 	getSignatureBlock,
 	htmlToPlainText,
@@ -16,6 +24,7 @@ import {
 } from "~/lib/utils";
 import { useDeleteEmail, useForwardEmail, useReplyToEmail, useSaveDraft, useSendEmail } from "~/queries/emails";
 import { useMailbox } from "~/queries/mailboxes";
+import { useComposeAttachments } from "~/hooks/useComposeAttachments";
 import { useUIStore } from "~/hooks/useUIStore";
 
 function appendUniqueAddress(
@@ -184,6 +193,14 @@ export function useComposeForm(mailboxId?: string, _folder?: string) {
 	const lastInitializedOptionsRef = useRef<typeof composeOptions | null>(null);
 	const isDraftEdit = !!composeOptions.draftEmail;
 
+	// Pasted images sit in the body as data URLs, so they share the outbound
+	// size budget with the files picked from the toolbar.
+	const bodyRef = useRef(body);
+	bodyRef.current = body;
+	const attachments = useComposeAttachments(
+		useCallback(() => inlineImageBytes(bodyRef.current), []),
+	);
+
 	const formTitle = useMemo(() => {
 		if (isDraftEdit) return "Edit Draft";
 		switch (composeOptions.mode) { case "reply": return "Reply"; case "reply-all": return "Reply All"; case "forward": return "Forward"; default: return "New Message"; }
@@ -207,7 +224,8 @@ export function useComposeForm(mailboxId?: string, _folder?: string) {
 		setShowCcBcc(initialFields.showCcBcc);
 		setSubject(initialFields.subject);
 		setBody(initialFields.body);
-	}, [composeOptions, currentMailbox?.email, sigBlock]);
+		attachments.reset();
+	}, [composeOptions, currentMailbox?.email, sigBlock, attachments.reset]);
 
 	const handleSaveDraft = async () => {
 		if (!mailboxId || isSending) return; setIsSavingDraft(true); setError(null);
@@ -222,7 +240,13 @@ export function useComposeForm(mailboxId?: string, _folder?: string) {
 				thread_id: composeOptions.originalEmail?.thread_id || composeOptions.draftEmail?.thread_id || undefined,
 				draft_id: composeOptions.draftEmail?.id || undefined,
 			} });
-			toastManager.add({ title: "Draft saved!" });
+			// Drafts store a body, not MIME parts: pasted images survive because
+			// they live in the HTML, picked files do not.
+			toastManager.add(
+				attachments.items.length > 0
+					? { title: "Draft saved — attached files are not kept", variant: "warning" }
+					: { title: "Draft saved!" },
+			);
 		}
 		catch (err: unknown) {
 			const message = (err instanceof Error ? err.message : null) || "Failed to save draft.";
@@ -240,14 +264,41 @@ export function useComposeForm(mailboxId?: string, _folder?: string) {
 		const ccRecipients = splitEmailList(cc); const bccRecipients = splitEmailList(bcc);
 		const fromName = currentMailbox.settings?.fromName || currentMailbox.name;
 		const from = fromName && fromName !== currentMailbox.email ? { email: currentMailbox.email, name: fromName } : currentMailbox.email;
+
+		// Swap the editor's data-URL images for `cid:` references and ship them
+		// as inline MIME parts, which is what mail clients actually render.
+		const { html, attachments: inlineImages } = extractInlineImages(body, () =>
+			crypto.randomUUID(),
+		);
+		const outgoingAttachments: OutgoingAttachment[] = [
+			...inlineImages,
+			...attachments.items.map((item) => ({
+				content: item.content,
+				filename: item.filename,
+				type: item.type,
+				disposition: "attachment" as const,
+			})),
+		];
+		const payloadBytes = outgoingAttachments.reduce(
+			(sum, att) => sum + base64ByteLength(att.content),
+			0,
+		);
+		if (payloadBytes > MAX_TOTAL_ATTACHMENT_BYTES) {
+			setError(
+				`Attachments and pasted images total ${formatBytes(payloadBytes)}. Keep them under ${formatBytes(MAX_TOTAL_ATTACHMENT_BYTES, 1)}.`,
+			);
+			return;
+		}
+
 		const emailData = {
 			to: toEmailListValue(toRecipients),
 			cc: toEmailListValue(ccRecipients),
 			bcc: toEmailListValue(bccRecipients),
 			from,
 			subject,
-			html: body,
-			text: htmlToPlainText(body),
+			html,
+			text: htmlToPlainText(html),
+			...(outgoingAttachments.length > 0 ? { attachments: outgoingAttachments } : {}),
 		};
 		const draftId = composeOptions.draftEmail?.id; const mode = composeOptions.mode; const originalId = composeOptions.originalEmail?.id || composeOptions.draftEmail?.in_reply_to;
 		setIsSending(true); toastManager.add({ title: "Sending email..." });
@@ -262,5 +313,5 @@ export function useComposeForm(mailboxId?: string, _folder?: string) {
 		finally { setIsSending(false); }
 	};
 
-	return { to, setTo, cc, setCc, bcc, setBcc, showCcBcc, setShowCcBcc, subject, setSubject, body, setBody, error, setError, isSavingDraft, isSending, formTitle, handleSaveDraft, handleSend, closeCompose, closePanel };
+	return { to, setTo, cc, setCc, bcc, setBcc, showCcBcc, setShowCcBcc, subject, setSubject, body, setBody, attachments, error, setError, isSavingDraft, isSending, formTitle, handleSaveDraft, handleSend, closeCompose, closePanel };
 }

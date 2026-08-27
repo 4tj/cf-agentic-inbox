@@ -30,6 +30,23 @@ export interface SendEmailParams {
 }
 
 /**
+ * Decode base64 attachment content into the raw bytes the binding expects.
+ *
+ * The binding treats a string `content` as the literal file body, not as
+ * base64 — handing it the base64 text would deliver an unreadable file. The
+ * API layer carries attachments as base64 (JSON has no binary), so the
+ * conversion belongs here, at the boundary.
+ */
+function base64ToBytes(base64: string): Uint8Array {
+	const binary = atob(base64);
+	const bytes = new Uint8Array(binary.length);
+	for (let i = 0; i < binary.length; i++) {
+		bytes[i] = binary.charCodeAt(i);
+	}
+	return bytes;
+}
+
+/**
  * Send an email using the Cloudflare Email Service binding.
  *
  * @param binding  - The `EMAIL` SendEmail binding from env
@@ -58,13 +75,20 @@ export async function sendEmail(
 	}
 
 	if (params.attachments && params.attachments.length > 0) {
-		message.attachments = params.attachments.map((att) => ({
-			content: att.content,
-			filename: att.filename,
-			type: att.type,
-			disposition: att.disposition,
-			...(att.contentId ? { contentId: att.contentId } : {}),
-		}));
+		message.attachments = params.attachments.map((att) => {
+			const base = {
+				content: base64ToBytes(att.content),
+				filename: att.filename,
+				type: att.type,
+			};
+			// `inline` requires a Content-ID to reference from the HTML body.
+			// Without one the part is unreachable, so send it as a normal
+			// attachment rather than silently dropping it.
+			const contentId = att.contentId?.replace(/^<|>$/g, "");
+			return att.disposition === "inline" && contentId
+				? { ...base, disposition: "inline" as const, contentId }
+				: { ...base, disposition: "attachment" as const };
+		});
 	}
 
 	const result = await binding.send(message as any);
