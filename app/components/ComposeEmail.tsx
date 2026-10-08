@@ -4,16 +4,13 @@
 
 import { Banner, Button, Dialog, Input, Text } from "@cloudflare/kumo";
 import { FloppyDiskIcon, PaperPlaneTiltIcon } from "@phosphor-icons/react";
-import { useParams } from "react-router";
+import { useMailboxContext } from "~/hooks/useMailboxContext";
 import { useComposeForm } from "~/hooks/useComposeForm";
 import RichTextEditor from "./RichTextEditor";
 import { useUIStore } from "~/hooks/useUIStore";
 
 export default function ComposeEmail() {
-	const { mailboxId, folder } = useParams<{
-		mailboxId: string;
-		folder: string;
-	}>();
+	const mailboxId = useMailboxContext();
 	
 	const { isComposeModalOpen, closeComposeModal } = useUIStore();
 
@@ -37,7 +34,7 @@ export default function ComposeEmail() {
 		formTitle,
 		handleSaveDraft,
 		handleSend,
-	} = useComposeForm(mailboxId, folder);
+	} = useComposeForm(mailboxId);
 
 	return (
 		<Dialog.Root
@@ -46,7 +43,7 @@ export default function ComposeEmail() {
 		>
 			<Dialog size="lg" className="p-6 max-h-[85vh] overflow-y-auto">
 				<Dialog.Title className="text-lg font-semibold mb-5">
-					{formTitle}
+					{formTitle}<span className="block text-xs font-normal mt-1 text-kumo-subtle break-all">From: {mailboxId}</span>
 				</Dialog.Title>
 				<form onSubmit={(e) => handleSend(e, closeComposeModal)} className="space-y-4">
 					{error && <Banner variant="error" text={error} />}

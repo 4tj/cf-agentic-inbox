@@ -19,7 +19,7 @@ import {
 	PencilSimpleIcon,
 } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
-import { useParams } from "react-router";
+import { useMailboxContext } from "~/hooks/useMailboxContext";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useUIStore } from "~/hooks/useUIStore";
@@ -440,6 +440,7 @@ function AgentChatConnected({
 												body: draftData.body || "",
 											};
 											startCompose({
+												mailboxId,
 												mode: "reply",
 												originalEmail: null,
 												draftEmail,
@@ -522,7 +523,7 @@ function AgentChatConnected({
 }
 
 export default function AgentPanel() {
-	const { mailboxId } = useParams<{ mailboxId: string }>();
+	const mailboxId = useMailboxContext();
 	const [hooks, setHooks] = useState<{
 		useAgent: typeof import("agents/react").useAgent;
 		useAgentChat: typeof import("@cloudflare/ai-chat/react").useAgentChat;
@@ -545,6 +546,7 @@ export default function AgentPanel() {
 		});
 	}, []);
 
+	if (!mailboxId) return <p className="p-4 text-sm">Choose a mailbox before opening Agent.</p>;
 	if (loadError) {
 		return (
 			<div className="flex flex-col items-center justify-center h-full gap-2 px-4 text-center">
@@ -566,7 +568,7 @@ export default function AgentPanel() {
 
 	return (
 		<AgentChatConnected
-			mailboxId={mailboxId ?? "default"}
+			mailboxId={mailboxId}
 			useAgent={hooks.useAgent}
 			useAgentChat={hooks.useAgentChat}
 		/>
