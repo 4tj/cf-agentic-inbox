@@ -191,6 +191,8 @@ export function useComposeForm(mailboxId?: string, _folder?: string) {
 	const [isSavingDraft, setIsSavingDraft] = useState(false);
 	const [isSending, setIsSending] = useState(false);
 	const lastInitializedOptionsRef = useRef<typeof composeOptions | null>(null);
+	const needsInitialization = lastInitializedOptionsRef.current !== composeOptions;
+	const [savedFields, setSavedFields] = useState<string | null>(null);
 	const isDraftEdit = !!composeOptions.draftEmail;
 
 	// Pasted images sit in the body as data URLs, so they share the outbound
@@ -217,6 +219,8 @@ export function useComposeForm(mailboxId?: string, _folder?: string) {
 			currentMailbox?.email,
 			sigBlock,
 		);
+		setSavedFields(JSON.stringify([initialFields.to, initialFields.cc, initialFields.bcc, initialFields.subject, initialFields.body]));
+		useUIStore.getState().setComposeDirty(false);
 		setError(null);
 		setTo(initialFields.to);
 		setCc(initialFields.cc);
@@ -226,6 +230,14 @@ export function useComposeForm(mailboxId?: string, _folder?: string) {
 		setBody(initialFields.body);
 		attachments.reset();
 	}, [composeOptions, currentMailbox?.email, sigBlock, attachments.reset]);
+
+	useEffect(() => {
+		if (!needsInitialization && savedFields !== null) useUIStore.getState().setComposeDirty(
+			JSON.stringify([to, cc, bcc, subject, body]) !== savedFields || attachments.items.length > 0,
+		);
+	}, [needsInitialization, savedFields, to, cc, bcc, subject, body, attachments.items.length]);
+	useEffect(() => { useUIStore.getState().setComposeBusy(isSavingDraft || isSending); }, [isSavingDraft, isSending]);
+	useEffect(() => () => { useUIStore.getState().setComposeDirty(false); useUIStore.getState().setComposeBusy(false); }, []);
 
 	const handleSaveDraft = async () => {
 		if (!mailboxId || isSending) return; setIsSavingDraft(true); setError(null);
@@ -240,6 +252,7 @@ export function useComposeForm(mailboxId?: string, _folder?: string) {
 				thread_id: composeOptions.originalEmail?.thread_id || composeOptions.draftEmail?.thread_id || undefined,
 				draft_id: composeOptions.draftEmail?.id || undefined,
 			} });
+			setSavedFields(JSON.stringify([to, cc, bcc, subject, body]));
 			// Drafts store a body, not MIME parts: pasted images survive because
 			// they live in the HTML, picked files do not.
 			toastManager.add(
@@ -308,6 +321,8 @@ export function useComposeForm(mailboxId?: string, _folder?: string) {
 			else await sendEmailMutation.mutateAsync({ mailboxId, email: emailData });
 			if (draftId) deleteEmailMutation.mutate({ mailboxId, id: draftId });
 			toastManager.add({ title: "Email sent!" });
+			useUIStore.getState().setComposeDirty(false);
+			useUIStore.getState().setComposeBusy(false);
 			onClose();
 		} catch (err: unknown) { const message = (err instanceof Error ? err.message : null) || "Failed to send email."; setError(message); toastManager.add({ title: message, variant: "error" }); }
 		finally { setIsSending(false); }

@@ -146,7 +146,7 @@ export default function RichTextEditor({
 
 	useEffect(() => {
 		if (editor && !editor.isDestroyed && value !== editor.getHTML()) {
-			editor.commands.setContent(value);
+			editor.commands.setContent(value, { emitUpdate: false });
 			// Place cursor at the start of the document (above quoted text)
 			const rafId = requestAnimationFrame(() => {
 				if (!editor.isDestroyed) {

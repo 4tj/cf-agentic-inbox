@@ -2,9 +2,10 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
-import { useKumoToastManager } from "@cloudflare/kumo";
+import { Button, useKumoToastManager } from "@cloudflare/kumo";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router";
+import { useMailboxContext } from "~/hooks/useMailboxContext";
 import { Folders } from "shared/folders";
 import EmailPanelDialogs from "~/components/email-panel/EmailPanelDialogs";
 import EmailPanelHeader from "~/components/email-panel/EmailPanelHeader";
@@ -12,11 +13,11 @@ import EmailPanelToolbar from "~/components/email-panel/EmailPanelToolbar";
 import SingleMessageView from "~/components/email-panel/SingleMessageView";
 import ThreadMessage from "~/components/email-panel/ThreadMessage";
 import { splitEmailList, toEmailListValue } from "~/lib/utils";
-import api from "~/services/api";
+import api, { ApiError } from "~/services/api";
 import { useDeleteEmail, useEmail, useMoveEmail, useReplyToEmail, useSendEmail, useThreadReplies, useUpdateEmail } from "~/queries/emails";
 import { useFolders } from "~/queries/folders";
 import { useMailbox } from "~/queries/mailboxes";
-import { useUIStore } from "~/hooks/useUIStore";
+import { confirmDiscardCompose, useUIStore } from "~/hooks/useUIStore";
 import type { Email, Folder, Mailbox } from "~/types";
 
 function EmailPanelSkeleton() {
@@ -30,8 +31,9 @@ function EmailPanelSkeleton() {
 }
 
 export default function EmailPanel({ emailId }: { emailId: string }) {
-	const { mailboxId, folder } = useParams<{ mailboxId: string; folder: string }>();
-	const { data: email } = useEmail(mailboxId, emailId) as { data?: Email };
+	const { folder } = useParams<{ folder: string }>();
+	const mailboxId = useMailboxContext();
+	const { data: email, error: emailError, refetch } = useEmail(mailboxId, emailId);
 	const { data: threadRepliesRaw } = useThreadReplies(mailboxId, email?.thread_id) as {
 		data?: Email[];
 	};
@@ -50,7 +52,7 @@ export default function EmailPanel({ emailId }: { emailId: string }) {
 	const [sourceViewEmail, setSourceViewEmail] = useState<Email | null>(null);
 	const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
 	const [previewImage, setPreviewImage] = useState<{ url: string; filename: string } | null>(null);
-	const isDraftFolder = folder === Folders.DRAFT;
+	const isDraftFolder = email?.folder_id === Folders.DRAFT || folder === Folders.DRAFT;
 
 	const threadReplies = useMemo(() => {
 		if (!threadRepliesRaw || !email) return [];
@@ -65,7 +67,7 @@ export default function EmailPanel({ emailId }: { emailId: string }) {
 	// Reset expanded state only when the selected email changes, not on every refetch.
 	// Using allMessages as a dependency would reset user expand/collapse state on background refetches.
 	const currentEmailId = email?.id;
-	useEffect(() => { if (allMessages.length > 1) setExpandedMessages(new Set([allMessages[0].id])); }, [currentEmailId]); // eslint-disable-line react-hooks/exhaustive-deps
+	useEffect(() => { if (currentEmailId) setExpandedMessages(new Set([currentEmailId])); }, [currentEmailId]);
 
 	const toggleExpand = (msgId: string) => { setExpandedMessages((prev) => { const next = new Set(prev); if (next.has(msgId)) next.delete(msgId); else next.add(msgId); return next; }); };
 
@@ -85,16 +87,17 @@ export default function EmailPanel({ emailId }: { emailId: string }) {
 
 	const moveToFolders = useMemo(() => { const cur = folder || email?.folder_id; return folders.filter((f) => f.id !== cur); }, [folders, folder, email?.folder_id]);
 
+	if (emailError) return <div className="p-6" role="alert"><h2 className="font-semibold">{emailError instanceof ApiError && emailError.status === 404 ? "Email unavailable" : "Could not load email"}</h2><p className="text-sm text-kumo-subtle mt-2">{emailError.message}</p><div className="flex gap-2 mt-4"><Button onClick={() => void refetch()}>Retry</Button><Button variant="ghost" onClick={() => closePanel()}>Back to list</Button></div></div>;
 	if (!email) return <EmailPanelSkeleton />;
 
 	const toggleStar = () => { if (mailboxId) updateEmail.mutate({ mailboxId, id: email.id, data: { starred: !email.starred } }); };
-	const handleMove = (folderId: string) => { if (mailboxId) { moveEmailMut.mutate({ mailboxId, id: email.id, folderId }); closePanel(); } };
-	const handleDelete = () => { if (mailboxId) { if (!window.confirm("Are you sure you want to delete this email?")) return; deleteEmailMut.mutate({ mailboxId, id: email.id }); closePanel(); } };
+	const handleMove = (folderId: string) => { if (mailboxId && confirmDiscardCompose()) { moveEmailMut.mutate({ mailboxId, id: email.id, folderId }); closePanel(true); } };
+	const handleDelete = () => { if (mailboxId && confirmDiscardCompose()) { if (!window.confirm("Are you sure you want to delete this email?")) return; deleteEmailMut.mutate({ mailboxId, id: email.id }); closePanel(true); } };
 
 	const handleEditDraft = (draftMsg?: Email) => {
 		const target = draftMsg || email;
-		if (target.in_reply_to) { startCompose({ mode: "reply", originalEmail: allMessages.find((msg) => msg.id === target.in_reply_to), draftEmail: target }); }
-		else { startCompose({ mode: "new", originalEmail: undefined, draftEmail: target }); }
+		if (target.in_reply_to) { startCompose({ mode: "reply", mailboxId, originalEmail: allMessages.find((msg) => msg.id === target.in_reply_to), draftEmail: target }); }
+		else { startCompose({ mode: "new", mailboxId, originalEmail: undefined, draftEmail: target }); }
 	};
 
 	const handleDeleteDraft = async (draftMsg?: Email) => {
@@ -141,25 +144,27 @@ export default function EmailPanel({ emailId }: { emailId: string }) {
 
 	return (
 		<div className="flex flex-col h-full">
+			<div className="px-4 py-2 border-b border-kumo-line text-xs text-kumo-subtle break-all" title={mailboxId}>Mailbox: {mailboxId}</div>
 			<EmailPanelToolbar
 				email={email}
 				mailboxId={mailboxId}
 				isDraftFolder={isDraftFolder}
 				isSending={isSending}
 				moveToFolders={moveToFolders}
-				onBack={closePanel}
+				onBack={() => closePanel()}
 				onSendDraft={() => handleSendDraft()}
 				onEditDraft={() => handleEditDraft()}
 				onReply={() =>
-					startCompose({ mode: "reply", originalEmail: lastReceivedMessage })
+					startCompose({ mode: "reply", mailboxId, originalEmail: lastReceivedMessage })
 				}
 				onReplyAll={() =>
 					startCompose({
 						mode: "reply-all",
+						mailboxId,
 						originalEmail: lastReceivedMessage,
 					})
 				}
-				onForward={() => startCompose({ mode: "forward", originalEmail: email })}
+				onForward={() => startCompose({ mode: "forward", mailboxId, originalEmail: email })}
 				onToggleStar={toggleStar}
 				onToggleRead={() => {
 					if (mailboxId) {

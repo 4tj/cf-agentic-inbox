@@ -6,6 +6,108 @@ body {
   margin: 0;
 }
 
+.inbox-sidebar {
+  width: 240px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  padding: 24px 12px 14px;
+  background: var(--color-kumo-recessed);
+  border-right: 1px solid var(--color-kumo-line);
+}
+[role="dialog"] .inbox-sidebar {
+  width: 100%;
+}
+.inbox-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 10px;
+  margin: 3px 0;
+  border-radius: 7px;
+  min-width: 0;
+  color: var(--color-kumo-strong);
+}
+.inbox-nav-item:hover {
+  background: var(--color-kumo-tint);
+}
+.inbox-nav-item.is-active {
+  background: var(--color-kumo-fill);
+  font-weight: 600;
+  color: var(--color-kumo-default);
+}
+.mail-split {
+  display: flex;
+  height: 100%;
+  min-width: 0;
+}
+.mail-list-pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  width: 380px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--color-kumo-line);
+}
+.mail-detail-pane {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--color-kumo-base);
+}
+.mail-row {
+  display: flex;
+  gap: 10px;
+  padding: 18px 14px 18px 8px;
+  border-bottom: 1px solid var(--color-kumo-line);
+  text-align: left;
+  cursor: pointer;
+}
+.mail-row:hover {
+  background: var(--color-kumo-tint);
+}
+.mail-row.is-selected {
+  background: var(--color-kumo-fill);
+  box-shadow: inset 3px 0 0 var(--color-kumo-brand);
+}
+.mail-row:focus-visible,
+.inbox-nav-item:focus-visible {
+  outline: 2px solid var(--color-kumo-brand);
+  outline-offset: -2px;
+}
+@media (min-width: 1600px) {
+  .inbox-sidebar {
+    width: 256px;
+  }
+  .mail-list-pane {
+    width: 420px;
+  }
+}
+@media (max-width: 1199px) {
+  .mail-list-pane {
+    width: 100%;
+    border-right: 0;
+  }
+  .mail-detail-pane {
+    display: none;
+  }
+  .detail-open > .mail-list-pane {
+    display: none;
+  }
+  .detail-open > .mail-detail-pane {
+    display: flex;
+  }
+}
+@media (max-width: 767px) {
+  .mail-row {
+    padding-top: 19px;
+    padding-bottom: 19px;
+  }
+}
+
 /* TipTap list styles */
 .ProseMirror ul {
   list-style-type: disc;

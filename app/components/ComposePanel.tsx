@@ -4,15 +4,12 @@
 
 import { Banner, Button, Input } from "@cloudflare/kumo";
 import { FloppyDiskIcon, PaperPlaneTiltIcon, XIcon } from "@phosphor-icons/react";
-import { useParams } from "react-router";
+import { useMailboxContext } from "~/hooks/useMailboxContext";
 import { useComposeForm } from "~/hooks/useComposeForm";
 import RichTextEditor from "./RichTextEditor";
 
 export default function ComposePanel() {
-	const { mailboxId, folder } = useParams<{
-		mailboxId: string;
-		folder: string;
-	}>();
+	const mailboxId = useMailboxContext();
 
 	const {
 		to,
@@ -36,13 +33,13 @@ export default function ComposePanel() {
 		handleSend,
 		closeCompose,
 		closePanel,
-	} = useComposeForm(mailboxId, folder);
+	} = useComposeForm(mailboxId);
 
 	return (
 		<div className="flex flex-col h-full bg-kumo-base">
 			<div className="flex items-center justify-between px-4 py-3 border-b border-kumo-line shrink-0 md:px-6">
 				<h2 className="text-base font-semibold text-kumo-default">
-					{formTitle}
+					{formTitle}<span className="block text-xs font-normal text-kumo-subtle mt-1 break-all">From: {mailboxId}</span>
 				</h2>
 				<div className="flex items-center gap-1">
 					<Button
@@ -50,7 +47,7 @@ export default function ComposePanel() {
 						shape="square"
 						size="sm"
 						icon={<XIcon size={18} />}
-						onClick={closeCompose}
+						onClick={() => closeCompose()}
 						disabled={isSending}
 						aria-label="Close compose"
 					/>
@@ -73,6 +70,7 @@ export default function ComposePanel() {
 								<Input
 									type="text"
 									placeholder="recipient@example.com"
+									aria-label="To"
 									size="sm"
 									value={to}
 									onChange={(e) => setTo(e.target.value)}
@@ -99,6 +97,7 @@ export default function ComposePanel() {
 									<Input
 										type="text"
 										size="sm"
+										aria-label="CC"
 										value={cc}
 										onChange={(e) => setCc(e.target.value)}
 										placeholder="Separate multiple addresses with commas"
@@ -116,6 +115,7 @@ export default function ComposePanel() {
 									<Input
 										type="text"
 										size="sm"
+										aria-label="BCC"
 										value={bcc}
 										onChange={(e) => setBcc(e.target.value)}
 										placeholder="Separate multiple addresses with commas"
@@ -132,6 +132,7 @@ export default function ComposePanel() {
 								<Input
 									type="text"
 									placeholder="Email subject"
+									aria-label="Subject"
 									size="sm"
 									value={subject}
 									onChange={(e) => setSubject(e.target.value)}
@@ -154,7 +155,7 @@ export default function ComposePanel() {
 				{/* Footer actions */}
 				<div className="mt-auto px-4 py-3 border-t border-kumo-line bg-kumo-fill/30 shrink-0 md:px-6">
 					<div className="flex items-center justify-between">
-						<Button type="button" variant="ghost" size="sm" onClick={closeCompose} disabled={isSending}>
+						<Button type="button" variant="ghost" size="sm" onClick={() => closeCompose()} disabled={isSending}>
 							Discard
 						</Button>
 						<div className="flex items-center gap-2">

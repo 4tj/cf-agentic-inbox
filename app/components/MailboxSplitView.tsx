@@ -1,51 +1,59 @@
-// Copyright (c) 2026 Cloudflare, Inc.
-// Licensed under the Apache 2.0 license found in the LICENSE file or at:
-//     https://opensource.org/licenses/Apache-2.0
-
+// Copyright (c) 2026 Cloudflare, Inc. Apache-2.0
 import type { ReactNode } from "react";
-import ComposePanel from "~/components/ComposePanel";
-import EmailPanel from "~/components/EmailPanel";
-
-interface MailboxSplitViewProps {
-	selectedEmailId: string | null;
-	isComposing: boolean;
-	children: ReactNode;
-}
+import { EnvelopeIcon } from "@phosphor-icons/react";
+import ComposePanel from "./ComposePanel";
+import EmailPanel from "./EmailPanel";
+import { MailboxContext } from "~/hooks/useMailboxContext";
+import { useUIStore } from "~/hooks/useUIStore";
 
 export default function MailboxSplitView({
 	selectedEmailId,
 	isComposing,
 	children,
-}: MailboxSplitViewProps) {
-	const isPanelOpen = selectedEmailId !== null || isComposing;
-
+}: {
+	selectedEmailId: string | null;
+	isComposing: boolean;
+	children: ReactNode;
+}) {
+	const { selectedMailboxId, composeMailboxId } = useUIStore();
+	const open = selectedEmailId !== null || isComposing;
 	return (
-		<div className="flex h-full">
-			<div
-				className={`flex flex-col min-w-0 shrink-0 ${
-					isPanelOpen
-						? "hidden md:flex md:w-[380px] md:border-r md:border-kumo-line"
-						: "w-full"
-				}`}
-			>
+		<div className={`mail-split ${open ? "detail-open" : ""}`}>
+			<section className="mail-list-pane" aria-label="Email list">
 				{children}
-			</div>
-			{isPanelOpen && (
-				<div className="flex-1 flex flex-col min-w-0 overflow-hidden w-full md:w-auto">
-					{isComposing && !selectedEmailId ? (
-						<ComposePanel />
-					) : isComposing && selectedEmailId ? (
+			</section>
+			<section className="mail-detail-pane" aria-label="Email content">
+				{isComposing && composeMailboxId ? (
+					<MailboxContext.Provider value={composeMailboxId}>
 						<div className="flex flex-col h-full overflow-y-auto">
-							<ComposePanel />
-							<div className="border-t border-kumo-line">
-								<EmailPanel emailId={selectedEmailId} />
-							</div>
+							<ComposePanel key={composeMailboxId} />
+							{selectedEmailId && selectedMailboxId === composeMailboxId && (
+								<div className="border-t border-kumo-line">
+									<EmailPanel
+										key={`${selectedMailboxId}/${selectedEmailId}`}
+										emailId={selectedEmailId}
+									/>
+								</div>
+							)}
 						</div>
-					) : selectedEmailId ? (
-						<EmailPanel emailId={selectedEmailId} />
-					) : null}
-				</div>
-			)}
+					</MailboxContext.Provider>
+				) : selectedEmailId && selectedMailboxId ? (
+					<MailboxContext.Provider value={selectedMailboxId}>
+						<EmailPanel
+							key={`${selectedMailboxId}/${selectedEmailId}`}
+							emailId={selectedEmailId}
+						/>
+					</MailboxContext.Provider>
+				) : (
+					<div className="flex h-full flex-col items-center justify-center text-kumo-subtle gap-3 px-5">
+						<EnvelopeIcon size={40} weight="thin" />
+						<h2 className="text-base font-medium">Select an email</h2>
+						<p className="text-sm text-center">
+							Choose a conversation from the list.
+						</p>
+					</div>
+				)}
+			</section>
 		</div>
 	);
 }

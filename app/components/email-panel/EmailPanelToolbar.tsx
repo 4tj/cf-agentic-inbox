@@ -68,7 +68,7 @@ export default function EmailPanelToolbar({
 				icon={<ArrowLeftIcon size={18} />}
 				onClick={onBack}
 				aria-label="Back to list"
-				className="md:hidden shrink-0"
+				className="shrink-0"
 			/>
 
 			{isDraftFolder ? (

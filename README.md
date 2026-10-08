@@ -37,9 +37,10 @@ https://github.com/cloudflare/agentic-inbox/issues/4#issuecomment-4269118513
 
 ## Features
 
+- **Unified inbox workspace** — All Inboxes aggregates real per-mailbox conversations; All / Send / Spam filter the selected mailbox scope. Three-pane desktop layout, mobile list/detail navigation, and separate **Manage mailboxes** / **Domains** entries. See [workspace behavior and local QA](docs/inbox-ui.md).
 - **Full email client** — Send and receive emails via Cloudflare Email Routing with a rich text composer, reply/forward threading, folder organization, search, and attachments
 - **Per-mailbox isolation** — Each mailbox runs in its own Durable Object with SQLite storage and R2 for attachments
-- **Built-in AI agent** — Side panel with 9 email tools for reading, searching, drafting, and sending
+- **Built-in AI agent** — Explicitly opened, mailbox-scoped drawer with 9 email tools for reading, searching, drafting, and sending; no Agent connection until clicked
 - **AI spam filtering on new email** — Every inbound message is classified by Workers AI before it is filed; junk goes straight to the Spam folder, everything else to the Inbox. The classifier fails open, so a model error delivers to the Inbox rather than hiding real mail
 - **Configurable and persistent** — Custom system prompts per mailbox, persistent chat history, streaming markdown responses, and tool call visibility
 - **Read-only mailbox sharing** — Each mailbox can expose one resettable public Inbox link on `sharemail.shopless.pro`
@@ -103,7 +104,7 @@ not work in this mode.
 
 ### Binding a domain
 
-Use the **Bind Domain** button on the home page (next to New Mailbox) to add a
+Open **Domains** or **Manage mailboxes** (`/manage`), then use **Bind Domain** to add a
 domain that is already in your Cloudflare account. The app automatically enables
 Email Routing (with a catch-all rule to this Worker), turns on subaddressing, and
 onboards the domain for Email Sending. Inbound routing works immediately; sending
@@ -116,8 +117,8 @@ the `DOMAINS` var is no longer read.
 
 ### Subaddressing (`address+detail@`)
 
-Each bound domain shows a **Subaddressing** switch next to its name on the home
-page. It maps to the zone's `support_subaddress` Email Routing setting
+Each bound domain shows a **Subaddressing** switch next to its name in the **Domains**
+management dialog. It maps to the zone's `support_subaddress` Email Routing setting
 (`PATCH /zones/{zone_id}/email/routing`), which Cloudflare ships **off** by
 default — binding a domain turns it on, and domains bound before this existed can
 be switched on there. The state is read live from Cloudflare, so flipping it in

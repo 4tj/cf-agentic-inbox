@@ -15,8 +15,8 @@ import {
 } from "@cloudflare/kumo";
 import { EnvelopeIcon, GlobeIcon, PlusIcon, TrashIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
-import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { Link as RouterLink } from "react-router";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { Link as RouterLink, useSearchParams } from "react-router";
 import api from "~/services/api";
 import {
 	useCreateMailbox,
@@ -32,7 +32,7 @@ export function meta() {
 
 export default function HomeRoute() {
 	const toastManager = useKumoToastManager();
-	const { data: mailboxes = [], refetch: refetchMailboxes, isFetched: mailboxesFetched } = useMailboxes();
+	const { data: mailboxes = [] } = useMailboxes();
 	const createMailbox = useCreateMailbox();
 	const deleteMailbox = useDeleteMailbox();
 
@@ -57,7 +57,9 @@ export default function HomeRoute() {
 		email: string;
 	} | null>(null);
 	const [isDeleting, setIsDeleting] = useState(false);
-	const [isDomainsOpen, setIsDomainsOpen] = useState(false);
+	const [searchParams] = useSearchParams();
+	const [isDomainsOpen, setIsDomainsOpen] = useState(searchParams.has("domains"));
+	useEffect(() => { if (searchParams.has("domains")) setIsDomainsOpen(true); }, [searchParams]);
 
 	// Set default domain when config loads
 	useEffect(() => {
@@ -66,31 +68,7 @@ export default function HomeRoute() {
 		}
 	}, [domains, selectedDomain]);
 
-	// Auto-create mailboxes from config (run once when both data sources are ready)
-	const autoCreateDone = useRef(false);
-	useEffect(() => {
-		if (autoCreateDone.current) return;
-		if (emailAddresses.length === 0 || !mailboxesFetched) return;
-		const existingEmails = new Set(
-			mailboxes.map((m) => m.email.toLowerCase()),
-		);
-		const toCreate = emailAddresses.filter(
-			(addr) => !existingEmails.has(addr.toLowerCase()),
-		);
-		if (toCreate.length === 0) {
-			autoCreateDone.current = true;
-			return;
-		}
-		autoCreateDone.current = true;
-		let cancelled = false;
-		Promise.all(
-			toCreate.map((addr) => {
-				const localPart = addr.split("@")[0] || addr;
-				return api.createMailbox(addr, localPart).catch(() => {});
-			}),
-		).then(() => { if (!cancelled) refetchMailboxes(); });
-		return () => { cancelled = true; };
-	}, [emailAddresses, mailboxes, refetchMailboxes]);
+	// Config-driven mailbox initialization is owned by the persistent workspace shell.
 
 	const handleCreate = async (e: FormEvent) => {
 		e.preventDefault();
@@ -154,7 +132,7 @@ export default function HomeRoute() {
 	const isLoading = !configData;
 
 	return (
-		<div className="min-h-screen bg-kumo-recessed">
+		<div className="h-full overflow-y-auto bg-kumo-recessed">
 			<div className="mx-auto max-w-2xl px-4 py-8 md:px-6 md:py-16">
 				<div className="mb-8">
 					<div className="flex items-center justify-between">
