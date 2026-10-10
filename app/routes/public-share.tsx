@@ -19,6 +19,7 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useParams } from "react-router";
+import { Folders } from "../../shared/folders";
 import EmailAttachmentList from "~/components/EmailAttachmentList";
 import EmailIframe from "~/components/EmailIframe";
 import InboxNavigation from "~/components/InboxNavigation";
@@ -29,6 +30,10 @@ import api, { ApiError } from "~/services/api";
 import type { Email } from "~/types";
 
 const PAGE_SIZE = 25;
+const SHARE_CATEGORIES = [
+	{ folder: Folders.INBOX, label: "All" },
+	{ folder: Folders.SPAM, label: "Spam" },
+] as const;
 function publicAttachmentUrl(
 	token: string,
 	emailId: string,
@@ -226,6 +231,7 @@ export default function PublicShareRoute() {
 	return <PublicShareView key={token} token={token} />;
 }
 function PublicShareView({ token }: { token: string }) {
+	const [folder, setFolder] = useState<string>(Folders.INBOX);
 	const [page, setPage] = useState(1);
 	const [selected, setSelected] = useState<string | null>(null);
 	const [navOpen, setNavOpen] = useState(false);
@@ -237,11 +243,11 @@ function PublicShareView({ token }: { token: string }) {
 		retry: false,
 	});
 	const list = useQuery({
-		queryKey: queryKeys.publicShare.emails(token, page),
+		queryKey: queryKeys.publicShare.emails(token, folder, page),
 		queryFn: ({ signal }) =>
 			api.listPublicShareEmails(
 				token,
-				{ page: String(page), limit: String(PAGE_SIZE) },
+				{ folder, page: String(page), limit: String(PAGE_SIZE) },
 				{ signal },
 			),
 		enabled: !!token && !!meta.data,
@@ -334,13 +340,23 @@ function PublicShareView({ token }: { token: string }) {
 							<div className="text-xs text-kumo-subtle mt-1 break-all">
 								{mailbox.email} · Received mail
 							</div>
-							<nav aria-label="Email categories" className="mt-5">
-								<span
-									aria-current="page"
-									className="inline-block px-4 py-1.5 rounded-md text-sm font-medium bg-kumo-fill"
-								>
-									All
-								</span>
+							<nav aria-label="Email categories" className="mt-5 flex gap-1">
+								{SHARE_CATEGORIES.map((category) => (
+									<button
+										key={category.folder}
+										type="button"
+										aria-current={folder === category.folder ? "page" : undefined}
+										className={`px-4 py-1.5 rounded-md text-sm font-medium ${folder === category.folder ? "bg-kumo-fill" : "text-kumo-subtle hover:bg-kumo-fill"}`}
+										onClick={() => {
+											if (folder === category.folder) return;
+											setFolder(category.folder);
+											setPage(1);
+											setSelected(null);
+										}}
+									>
+										{category.label}
+									</button>
+								))}
 							</nav>
 						</div>
 						{list.error && (
@@ -371,7 +387,7 @@ function PublicShareView({ token }: { token: string }) {
 							)}
 							{!list.isLoading && !list.error && !emails.length && (
 								<div className="px-6 py-20 text-center">
-									<h2 className="font-medium">Inbox is empty</h2>
+									<h2 className="font-medium">{folder === Folders.SPAM ? "Spam is empty" : "Inbox is empty"}</h2>
 									<p className="mt-2 text-sm text-kumo-subtle">
 										New emails will appear here when they arrive.
 									</p>

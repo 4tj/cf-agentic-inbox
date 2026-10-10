@@ -11,7 +11,7 @@ Implements the approved v2.1 proposal on baseline `ca922749da15f03b22ce0702355a3
 - Search uses the same existing operators in both scopes and remains cross-folder unless `in:` explicitly narrows it. Search results are messages, not conversation counts. Main tabs exit search rather than implicitly intersecting it.
 - Compose from All Inboxes first asks for a sender. Reply/forward use the selected email's mailbox and visibly show From. Unsaved changes are guarded before navigation, in-place selection or closing; manual Save as Draft remains. Ordinary attachments are still **not persisted in drafts** (existing API limitation); saving with attachments therefore does not clear the discard guard.
 - Agent is initially closed and unmounted. Only an explicit click opens the drawer and connects it to a selected/chosen mailbox; there is no `default` mailbox fallback. Closing unmounts the connection but does not clear server history. The existing MCP tab is retained.
-- Public Share remains an independent token query tree, not a hidden private workspace. It shows one authorized mailbox, All, refresh/pagination, read-only content and permitted attachments/thread context (including existing sent replies, excluding drafts). No private mailbox query, search, Send/Spam browse controls, Agent, configuration or write controls are mounted. Public rows omit the API's private-inclusive `thread_count`; the opened thread counts only its returned, permitted messages. Transient errors and invalid tokens have distinct states.
+- Public Share remains an independent token query tree, not a hidden private workspace. It shows one authorized mailbox, All / Spam (SHO-2822), refresh/pagination, read-only content and permitted attachments/thread context (including existing sent replies, excluding drafts). No private mailbox query, search, Send browse controls, Agent, configuration or write controls are mounted. Public rows omit the API's private-inclusive `thread_count`; the opened thread counts only its returned, permitted messages. Transient errors and invalid tokens have distinct states.
 
 ## Aggregate implementation
 
@@ -48,6 +48,7 @@ npx wrangler r2 object put agentic-inbox/attachments/qa2811-email-000/qa2811-att
 python3 scripts/check-inbox-ui.py --url http://127.0.0.1:52811 --session sho2811-qa --out ../artifacts/browser-qa
 python3 scripts/check-inbox-interactions.py --url http://127.0.0.1:52811 --session sho2811-interactions --out ../artifacts/interactions-qa
 python3 scripts/check-inbox-initialization.py --url http://127.0.0.1:52811 --session sho2811-initialization --out ../artifacts/initialization-qa
+python3 scripts/check-share-categories.py --url http://127.0.0.1:52811 --session share-categories --out ../artifacts/share-qa
 
 # Close only your own sessions and stop your own dev server when finished:
 agent-browser --session sho2811-qa close
@@ -55,6 +56,8 @@ agent-browser --session sho2811-interactions close
 ```
 
 A first Vite development visit (especially first lazy Agent import) can trigger dependency optimization/full reload. Let it finish and rerun the check with a fresh test session; do not interpret a dev reload as saved composition. No Vite/automation configuration was changed to bypass this. The browser scripts write raw commands, assertions and screenshots to their output directory. On a failure inspect those files before retrying; API writes may already have succeeded. Repeated successful interaction checks can create additional explicitly named local QA drafts, but do not change the 172 Inbox conversation identities.
+
+On hosts with Snap Chromium, the Share category check accepts `--profile /absolute/path/to/a/new/task-owned/browser-profile` to keep Chromium state outside Snap's private temporary directory. The same launch option is passed to every browser command.
 
 ### Data and coverage
 
@@ -65,6 +68,8 @@ Four mailboxes: 80 + 55 + 37 Inbox conversations and one genuinely empty mailbox
 - `check-inbox-ui.py`: full real-API pagination/order and 172-row recovery; intentionally failed later source page and failed rebuild; detail retention; tabs/scope/custom folders/search; source-only read/star/archive actions and loaded-depth retention.
 - `check-inbox-interactions.py`: reply identity, navigation/Back/close/search guards, real local draft save, aggregate sender choice, attachment upload and injected send failure; explicit Agent connection/reopen/MCP; medium/mobile scroll/focus/overflow; public-only requests, allowed thread/attachment reads, draft rejection, unchanged unread state, Share failure and invalid token.
 
+- `check-share-categories.py`: All/Spam folder isolation, reset to page 1 on switching, cleared selection, Spam detail and sanitized iframe content, unchanged unread state, existing thread/attachment access, mobile layout, injected list failure/retry, empty Spam and invalid token. Requires the fresh fixtures above. Spam attachment access and private folder/draft rejection are additionally covered in `workers/routes/share.test.ts`.
+
 - `check-inbox-initialization.py`: browser-only mocked config/creation failures; retry stays enabled, creation retries once and does not repeat on navigation. No mailbox writes reach the Worker in this probe.
 
 ### What is mocked or not claimed
@@ -72,3 +77,7 @@ Four mailboxes: 80 + 55 + 37 Inbox conversations and one genuinely empty mailbox
 List/send failures are injected **in the test browser**, not backend changes. Automated confirmation choices are stubbed to exercise guard outcomes; native confirm Cancel/Accept was also checked manually in the browser. Normal mailbox lists, metadata, details, thread reads, drafts, moves, read/star writes, token checks and attachment bytes use the actual local Worker/DO/R2. Tests never send outbound mail or request AI generation.
 
 `dev:local` bypasses Cloudflare Access and disables remote bindings. Local Share tests and unchanged backend security unit tests do not prove a deployed JWT/Access configuration. Real delivery, AI generation, nonempty production Agent history, cloud configuration and post-deployment behavior are not validated. Merge/deployment require separate authorization after independent implementation review.
+
+### SHO-2822 local verification note
+
+`npm test` (136 tests), `npm run typecheck`, `npm run build` and the 17 Share category browser checks passed. The browser checks validate real local list/detail/thread responses, iframe `srcdoc` content and read-only behavior; they do **not** assert that the sandboxed iframe paints its body. In this Linux/Snap Chromium run, some email bodies stayed blank despite populated `srcdoc`, including ordinary Inbox messages on the unchanged All path. This rendering issue was not resolved or attributed to the application versus browser environment. `EmailIframe` is unchanged. Visible body rendering and production Access/deployment remain unverified; do not treat the category checks as proof of either.
