@@ -26,7 +26,7 @@ export const queryKeys = {
 	},
 	publicShare: {
 		meta: (token: string) => ["public-share", token, "meta"] as const,
-		emails: (token: string, page: number) => ["public-share", token, "emails", page] as const,
+		emails: (token: string, folder: string, page: number) => ["public-share", token, "emails", folder, page] as const,
 		detail: (token: string, emailId: string) =>
 			["public-share", token, "emails", emailId] as const,
 		thread: (token: string, threadId: string) =>

@@ -43,7 +43,7 @@ https://github.com/cloudflare/agentic-inbox/issues/4#issuecomment-4269118513
 - **Built-in AI agent** — Explicitly opened, mailbox-scoped drawer with 9 email tools for reading, searching, drafting, and sending; no Agent connection until clicked
 - **AI spam filtering on new email** — Every inbound message is classified by Workers AI before it is filed; junk goes straight to the Spam folder, everything else to the Inbox. The classifier fails open, so a model error delivers to the Inbox rather than hiding real mail
 - **Configurable and persistent** — Custom system prompts per mailbox, persistent chat history, streaming markdown responses, and tool call visibility
-- **Read-only mailbox sharing** — Each mailbox can expose one resettable public Inbox link on `sharemail.shopless.pro`
+- **Read-only mailbox sharing** — Each mailbox can expose one resettable public All / Spam link on `sharemail.shopless.pro`
 - **Subaddressing** — Mail to `address+detail@` lands in the `address@` mailbox with the tag preserved; toggled per domain from the home page (see "Subaddressing" below)
 
 ## Stack
@@ -138,7 +138,7 @@ Open a mailbox, go to **Settings**, and use the **Sharing** section to copy the
 public Inbox link. The first copy creates the link if one does not exist. **Reset**
 replaces the token and invalidates the old URL.
 
-Visitors can view the shared mailbox's Inbox, open messages and thread context,
+Visitors can switch between **All** (normal Inbox mail) and **Spam**, open messages and thread context,
 and download or preview visible attachments. They cannot sign in, send mail,
 change read/star state, move/delete messages, open drafts, or access private API
 routes.

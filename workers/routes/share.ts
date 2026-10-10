@@ -54,8 +54,12 @@ function isDraft(email: { folder_id?: string | null }) {
 	return email.folder_id === Folders.DRAFT;
 }
 
-function hasInboxMessage(emails: Array<{ folder_id?: string | null }>) {
-	return emails.some((email) => email.folder_id === Folders.INBOX);
+function isSharedFolderEmail(email: { folder_id?: string | null }) {
+	return email.folder_id === Folders.INBOX || email.folder_id === Folders.SPAM;
+}
+
+function hasSharedMessage(emails: Array<{ folder_id?: string | null }>) {
+	return emails.some(isSharedFolderEmail);
 }
 
 function toPublicEmail(email: Record<string, any>) {
@@ -72,11 +76,11 @@ async function isPublicVisibleEmail(
 	stub: ReturnType<typeof getMailboxStub>,
 	email: EmailFull,
 ): Promise<boolean> {
-	if (email.folder_id === Folders.INBOX) return true;
+	if (isSharedFolderEmail(email)) return true;
 	if (!email.thread_id || isDraft(email)) return false;
 
 	const thread = (await (stub as any).getThreadEmails(email.thread_id)) as EmailFull[];
-	return hasInboxMessage(thread);
+	return hasSharedMessage(thread);
 }
 
 shareRoutes.use("/api/v1/mailboxes/:mailboxId/share-link/*", requireMailbox);
@@ -118,12 +122,14 @@ shareRoutes.get("/api/public/share/:token/emails", async (c) => {
 
 	const page = intQuery(c, "page");
 	const limit = intQuery(c, "limit");
+	// All retains its Inbox meaning. Never pass arbitrary public folders through.
+	const folder = c.req.query("folder") === Folders.SPAM ? Folders.SPAM : Folders.INBOX;
 	const emails = await (share.stub as any).getThreadedEmails({
-		folder: Folders.INBOX,
+		folder,
 		page,
 		limit,
 	});
-	const totalCount = await (share.stub as any).countThreadedEmails(Folders.INBOX);
+	const totalCount = await (share.stub as any).countThreadedEmails(folder);
 	return c.json({ emails: emails.map(toPublicEmail), totalCount });
 });
 
@@ -132,7 +138,7 @@ shareRoutes.get("/api/public/share/:token/threads/:threadId", async (c) => {
 	if (!share) return c.json({ error: "Not found" }, 404);
 
 	const thread = (await (share.stub as any).getThreadEmails(c.req.param("threadId")!)) as EmailFull[];
-	if (!hasInboxMessage(thread)) return c.json({ error: "Not found" }, 404);
+	if (!hasSharedMessage(thread)) return c.json({ error: "Not found" }, 404);
 
 	return c.json(thread.filter((email) => !isDraft(email)).map(toPublicEmail));
 });
@@ -168,7 +174,7 @@ shareRoutes.get("/api/public/share/:token/emails/:emailId", async (c) => {
 	if (!share) return c.json({ error: "Not found" }, 404);
 
 	const email = await share.stub.getEmail(c.req.param("emailId")!);
-	if (!email || email.folder_id !== Folders.INBOX) {
+	if (!email || !isSharedFolderEmail(email)) {
 		return c.json({ error: "Not found" }, 404);
 	}
 	return c.json(toPublicEmail(email as Record<string, any>));
