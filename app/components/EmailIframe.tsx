@@ -95,7 +95,7 @@ export default function EmailIframe({ body, autoSize }: EmailIframeProps) {
 						reportHeight();
 					}
 				});
-				reportHeight();
+				requestAnimationFrame(reportHeight);
 			<\/script>`
 			: "";
 
