@@ -288,6 +288,9 @@ try:
     for name in ('vh', 'min-vh'):
         for public in (False, True):
             open_mail(name, public)
+            # Both fixtures exceed the initial 100px viewport. Wait for the first
+            # real layout report before starting the full stability interval.
+            wait("document.querySelector('iframe').clientHeight > 100")
             samples = frame_js("""(async () => {
                 await new Promise(resolve => setTimeout(resolve,150));
                 const samples = [];
