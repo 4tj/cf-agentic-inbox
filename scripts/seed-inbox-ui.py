@@ -32,7 +32,7 @@ def prepare(url):
     print(json.dumps({"prepared": list(MAILBOXES), "next": "Stop this dev server before running seed"}, indent=2))
 
 
-def seed():
+def seed(iframe_images=False):
     paths = list((ROOT / ".wrangler/state/v3/do").rglob("*.sqlite"))
     found = {}
     for path in paths:
@@ -69,6 +69,27 @@ def seed():
                     insert("qa2811-" + folder, folder.capitalize() + " example", folder, 4000)
                 conn.execute("insert into attachments(id,email_id,filename,mimetype,size,disposition) values(?,?,?,?,?,?)", (
                     "qa2811-attachment", "qa2811-email-000", "qa2811-note.txt", "text/plain", 26, "attachment"))
+            if iframe_images and mailbox == "sales@example.test":
+                # Served only by check-email-iframe.py's localhost image proxy.
+                def image(name, delay):
+                    return f'<p><img src="/__qa2923/{name}.png?delay={delay}" alt="Portrait fixture"></p>'
+                bodies = {
+                    "late": image("tall", 1.8),
+                    "multi": image("first", 1.6) + image("second", 3.2),
+                    "reflow": "<p>" + "A narrow window wraps this email onto more lines. " * 120 + "</p>",
+                    "short": "<p>Just a few lines.</p>",
+                    "broken": image("missing", 1.8),
+                    "single": "<p>Long single message.</p>" * 160,
+                }
+                for index, (name, content) in enumerate(bodies.items()):
+                    id = "qa2923-" + name
+                    insert(id, "Iframe QA " + name, seconds=-10000 + index * 10,
+                           body=f'<div style="padding: 8px"><p>BEFORE {name}</p>{content}<p id="qa-end">AFTER {name}</p></div>')
+                    if name != "single":
+                        for reply in (1, 2):
+                            insert(f"{id}-reply-{reply}", "Re: Iframe QA " + name,
+                                   seconds=-9999 + index * 10 + reply, thread=id,
+                                   body=f"<p>Following message {reply}</p>")
             conn.commit()
             found[mailbox] = {"inboxConversations": count, "localDatabase": str(path.relative_to(ROOT))}
         finally:
@@ -82,5 +103,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=["prepare", "seed"])
     parser.add_argument("--url", default="http://127.0.0.1:52811")
+    parser.add_argument("--iframe-images", action="store_true", help="Add SHO-2923 image/layout fixtures")
     args = parser.parse_args()
-    prepare(args.url.rstrip("/")) if args.action == "prepare" else seed()
+    prepare(args.url.rstrip("/")) if args.action == "prepare" else seed(args.iframe_images)

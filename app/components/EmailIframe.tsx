@@ -70,19 +70,22 @@ export default function EmailIframe({ body, autoSize }: EmailIframeProps) {
 
 		const padding = autoSize ? "0" : "24px";
 
-		// Height-reporting script: sends body.scrollHeight to the parent.
+		// Keep height in sync with late images and width-driven text reflow.
 		// Runs inside the opaque-origin sandbox so it has zero access to
 		// the parent page — it can only postMessage.
 		const heightScript = autoSize
 			? `<script>
+				var lastHeight = 0;
 				function reportHeight() {
-					var h = document.body.scrollHeight;
-					if (h > 0) parent.postMessage({ __emailIframeHeight: true, height: h }, "*");
+					// Include collapsed top margins and fractional pixels at the bottom.
+					var h = Math.max(document.body.scrollHeight, Math.ceil(document.body.getBoundingClientRect().bottom));
+					if (h > 0 && h !== lastHeight) {
+						lastHeight = h;
+						parent.postMessage({ __emailIframeHeight: true, height: h }, "*");
+					}
 				}
+				new ResizeObserver(reportHeight).observe(document.body);
 				reportHeight();
-				setTimeout(reportHeight, 50);
-				setTimeout(reportHeight, 150);
-				setTimeout(reportHeight, 400);
 			<\/script>`
 			: "";
 

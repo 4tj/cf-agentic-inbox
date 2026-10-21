@@ -78,6 +78,27 @@ List/send failures are injected **in the test browser**, not backend changes. Au
 
 `dev:local` bypasses Cloudflare Access and disables remote bindings. Local Share tests and unchanged backend security unit tests do not prove a deployed JWT/Access configuration. Real delivery, AI generation, nonempty production Agent history, cloud configuration and post-deployment behavior are not validated. Merge/deployment require separate authorization after independent implementation review.
 
+### Email iframe image/layout regression (SHO-2923)
+
+In a fresh local acceptance environment, use `python3 scripts/seed-inbox-ui.py seed --iframe-images`
+instead of the ordinary offline seed step. This adds six conversations to the Sales mailbox;
+the ordinary 172-row aggregate checks should use their own unmodified fixtures.
+After restarting `dev:local`, run:
+
+```sh
+python3 scripts/check-email-iframe.py --url http://127.0.0.1:52923 --session sho2923-qa --out ../artifacts/iframe-qa
+```
+
+The check owns a temporary localhost HTTP proxy that forwards real application/API requests
+and serves 320×2400 PNG fixtures after 1.6–3.2 seconds (or a delayed 404). It closes the proxy
+and its named browser session on exit. The browser reads actual opaque-origin iframe layout
+through CDP without relaxing sandbox/CSP or injecting height reports. E1–E8 cover private
+threads, public share, staggered images, desktop/mobile reflow, short mail, ten-second 404
+stability, exact security attributes, and SingleMessageView scrolling. F1 records screenshots
+and checks three-message layout and collapse/reopen at desktop/mobile widths. JSON command,
+assertion, and image timing evidence is saved in the output directory; failed assertions
+produce exit code 1, including on the pre-fix baseline.
+
 ### SHO-2822 local verification note
 
 `npm test` (136 tests), `npm run typecheck`, `npm run build` and the 17 Share category browser checks passed. The browser checks validate real local list/detail/thread responses, iframe `srcdoc` content and read-only behavior; they do **not** assert that the sandboxed iframe paints its body. In this Linux/Snap Chromium run, some email bodies stayed blank despite populated `srcdoc`, including ordinary Inbox messages on the unchanged All path. This rendering issue was not resolved or attributed to the application versus browser environment. `EmailIframe` is unchanged. Visible body rendering and production Access/deployment remain unverified; do not treat the category checks as proof of either.
