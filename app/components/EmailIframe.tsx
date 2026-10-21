@@ -76,6 +76,7 @@ export default function EmailIframe({ body, autoSize }: EmailIframeProps) {
 		const heightScript = autoSize
 			? `<script>
 				var lastHeight = 0;
+				var lastWidth = innerWidth;
 				function reportHeight() {
 					// Include collapsed top margins and fractional pixels at the bottom.
 					var h = Math.max(document.body.scrollHeight, Math.ceil(document.body.getBoundingClientRect().bottom));
@@ -84,7 +85,16 @@ export default function EmailIframe({ body, autoSize }: EmailIframeProps) {
 						parent.postMessage({ __emailIframeHeight: true, height: h }, "*");
 					}
 				}
-				new ResizeObserver(reportHeight).observe(document.body);
+				document.addEventListener("load", reportHeight, true);
+				document.addEventListener("error", reportHeight, true);
+				window.addEventListener("resize", function () {
+					// Our own height reports resize the viewport too; observing them
+					// would make vh-based email layouts grow without bound.
+					if (innerWidth !== lastWidth) {
+						lastWidth = innerWidth;
+						reportHeight();
+					}
+				});
 				reportHeight();
 			<\/script>`
 			: "";

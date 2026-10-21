@@ -81,7 +81,7 @@ List/send failures are injected **in the test browser**, not backend changes. Au
 ### Email iframe image/layout regression (SHO-2923)
 
 In a fresh local acceptance environment, use `python3 scripts/seed-inbox-ui.py seed --iframe-images`
-instead of the ordinary offline seed step. This adds six conversations to the Sales mailbox;
+instead of the ordinary offline seed step. This adds eight conversations to the Sales mailbox;
 the ordinary 172-row aggregate checks should use their own unmodified fixtures.
 After restarting `dev:local`, run:
 
@@ -98,6 +98,13 @@ stability, exact security attributes, and SingleMessageView scrolling. F1 record
 and checks three-message layout and collapse/reopen at desktop/mobile widths. JSON command,
 assertion, and image timing evidence is saved in the output directory; failed assertions
 produce exit code 1, including on the pre-fix baseline.
+
+R1-1 additionally samples `height:100vh` and table `min-height:100vh` mail for ten
+seconds each, in both private threads and public share. Auto-sizing responds to image
+load/error and width changes, not to its own height updates: observing body size would
+create a feedback loop for viewport-relative heights. The email's CSS is preserved;
+this prevents runaway growth without attempting to make recursive `100vh + text`
+layouts fit by continually enlarging their viewport.
 
 ### SHO-2822 local verification note
 

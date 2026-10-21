@@ -80,6 +80,8 @@ def seed(iframe_images=False):
                     "short": "<p>Just a few lines.</p>",
                     "broken": image("missing", 1.8),
                     "single": "<p>Long single message.</p>" * 160,
+                    "vh": '<div style="height:100vh">VH block</div>',
+                    "min-vh": '<table style="min-height:100vh"><tr><td>Min VH block</td></tr></table>',
                 }
                 for index, (name, content) in enumerate(bodies.items()):
                     id = "qa2923-" + name

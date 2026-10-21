@@ -174,13 +174,14 @@ def open_mail(name, public=False):
     selector = f'.mail-row[data-email-id="qa2923-{name}"]'
     wait(f'!!document.querySelector({json.dumps(selector)})')
     ab('snapshot', '-i')
+    ab('scrollintoview', selector)
     ab('click', selector)
     wait(f"document.querySelector('iframe')?.srcdoc.includes('AFTER {name}')")
 
 
 def measure():
     # CDP frame context can inspect opaque origins without changing the sandbox.
-    # Allow the production observer/message/React render to settle; no QA resize messages.
+    # Allow the production message/React render to settle; no QA resize messages.
     result = frame_js("""(async () => {
         await Promise.all(Array.from(document.images).map(image => image.complete ? null :
             new Promise(resolve => {image.addEventListener('load',resolve,{once:true});
@@ -284,6 +285,23 @@ try:
               {'before': before, 'after': after, 'reopened': reopened})
     check('Delayed image responses really take at least 1.5s', bool(image_requests)
           and all(r['elapsed'] >= 1.5 for r in image_requests), image_requests)
+    for name in ('vh', 'min-vh'):
+        for public in (False, True):
+            open_mail(name, public)
+            samples = frame_js("""(async () => {
+                await new Promise(resolve => setTimeout(resolve,150));
+                const samples = [];
+                for (let i = 0; i <= 5; i++) {
+                    if (i) await new Promise(resolve => setTimeout(resolve,2000));
+                    samples.push({time:performance.now(), height:innerHeight,
+                        content:document.body.scrollHeight});
+                }
+                return samples;
+            })()""")
+            check(f'@R1-1 {name} {"share" if public else "thread"} stable for 10 seconds',
+                  samples[-1]['time'] - samples[0]['time'] >= 10000
+                  and len({s['height'] for s in samples}) == 1
+                  and all(0 < s['height'] <= s['content'] + 24 for s in samples), samples)
 finally:
     (out / 'image-requests.json').write_text(json.dumps(image_requests, indent=2))
     try:
